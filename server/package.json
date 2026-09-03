@@ -1,0 +1,21 @@
+{
+  "name": "renewal-register-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Express + Postgres behind the monthly renewal register",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch --env-file=.env src/index.js",
+    "migrate": "node --env-file=.env src/db.js",
+    "set-password": "node --env-file=.env scripts/set-password.mjs",
+    "import-sheet": "node --env-file=.env scripts/import-sheet.mjs"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "pg": "8.13.1"
+  }
+}

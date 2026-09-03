@@ -1,0 +1,1096 @@
+/* ===========================================================
+   Monthly report collection — white cards on a soft wash
+   Still minimal: hairline borders, near-black text, one green
+   accent on the amount and the send button. The cards exist to
+   group the questions, not to decorate them.
+   =========================================================== */
+
+:root {
+  --paper: #ffffff;
+  --wash: #f2f4f6; /* the page behind the cards */
+  --ink: #101215;
+  --ink-mid: #6b7280; /* labels */
+  --ink-soft: #9aa1ac; /* hints, placeholders */
+  --rule: #e4e6ea; /* hairlines */
+  --grid: #eef1f4; /* the fainter lines behind the chart */
+  --nil: #eaedf1; /* a table cell with nothing in it, shaded out */
+  --rule-strong: #101215; /* the focused field's rule */
+  --accent: #0f6b58;
+  --accent-ink: #ffffff;
+  --danger: #b0271a;
+
+  /* One colour per kind of money, so renewal, new RD and new FD read as three
+     different things everywhere they appear — the form, the receipt, the chart.
+     Renewal keeps the app's green; the other two are a warm amber and a blue,
+     far enough apart to tell at a glance and still calm on white. */
+  --c-renewal: #0f6b58;
+  --c-rd: #b56a12;
+  --c-fd: #3c5b9b;
+
+  /* The three medals, and the only colours in the app that do not mean money.
+     That is the whole reason they are allowed: nobody reads a medal as rupees.
+     They appear on the game board and nowhere else. */
+  --gold: #e8b73a;
+  --silver: #c8ced6;
+  --bronze: #c1793f;
+
+  --radius: 14px;
+  /* Barely there — enough to lift the card off the wash, not a drop shadow. */
+  --lift: 0 1px 2px rgba(16, 18, 21, 0.04), 0 1px 12px rgba(16, 18, 21, 0.03);
+
+  /* Light only — tell the browser not to auto-darken inputs on a phone
+     that is in dark mode. */
+  color-scheme: light;
+
+  /* One typeface for everything — Inter. Clean, neutral, and its digits are
+     the "standard" numerals jishn asked for on the amount. */
+  --display:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body: var(--display);
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--wash);
+}
+
+body {
+  font-family: var(--body);
+  font-weight: 500;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  margin: 0;
+}
+
+/* Keyboard focus is still visible, but never as a coloured box: a ring only
+   appears on things you press, and it is the same near-black as the ink. */
+:focus-visible {
+  outline: 1px solid var(--rule-strong);
+  outline-offset: 3px;
+}
+
+/* A field says it is focused by darkening its own underline, so it needs no
+   ring around it — that is the green box that used to sit over every input. */
+.well:focus-within,
+.well :focus-visible {
+  outline: none;
+}
+
+/* --- page ------------------------------------------------- */
+
+/* Centred when the cards fit, top-anchored and scrollable when they don't —
+   auto margins do that, `justify-content: center` would clip the heading. */
+.app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px calc(24px + env(safe-area-inset-left))
+    calc(24px + env(safe-area-inset-bottom))
+    calc(24px + env(safe-area-inset-right));
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  margin-top: auto;
+  transition: opacity 200ms var(--ease);
+}
+
+.card.is-sending {
+  opacity: 0.45;
+}
+
+/* A card is one group of questions and nothing more. A hairline border and a
+   near-invisible lift do the work; no fills, no heavy shadows. Every .section
+   (here and on the admin page) is a card too, so this is the only place the
+   look is defined. */
+.panel,
+.section {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--lift);
+  padding: 20px 18px;
+  margin-bottom: 14px;
+}
+
+/* --- heading ---------------------------------------------- */
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* The only ornament on the page. */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.month {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.75rem, 8vw, 2.1rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  margin: 14px 0 0;
+}
+
+.month-year {
+  font-weight: 400;
+  color: var(--ink-soft);
+  margin-left: 7px;
+}
+
+.head {
+  margin: 0 2px 18px;
+}
+
+.lede {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  max-width: 26ch;
+}
+
+/* Closing the announcement should not mean losing it. This puts it back up, and
+   it only exists while there is one to see. Underlined rather than boxed: it is
+   a way back to something, not a thing to do — and a box here would compete with
+   the send button, which is the only solid shape on the page. Tall enough to hit
+   with a thumb without looking like a button. */
+.again {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 2px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.again:active {
+  opacity: 0.6;
+}
+
+/* A line from the admin, above the questions. Its own card, so it is read. */
+/* --- the admin's announcement ------------------------------- */
+
+/* Everything else on this page is a white card on a grey wash, so the one thing
+   that must not be skimmed past is the opposite: a solid block of the accent
+   with the type reversed out of it. A tint was not enough — against white cards
+   it read as just another card. */
+.notice {
+  margin: 0 0 14px;
+  padding: 13px 16px;
+  background: var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--lift);
+}
+
+.notice-tag {
+  margin: 0 0 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* pre-line keeps the line breaks if the admin writes more than one line. */
+.notice-text {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--accent-ink);
+  white-space: pre-line;
+}
+
+/* --- fields: a label, a line, nothing else ------------------ */
+
+.field {
+  margin-bottom: 24px;
+}
+
+/* The last question in a card shouldn't push the card open below it. */
+.panel > .field:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  margin: 0 0 4px;
+}
+
+.well {
+  display: block;
+  border-radius: 0;
+  border-bottom: 1px solid var(--rule);
+  transition: border-color 160ms var(--ease);
+}
+
+.well:focus-within {
+  border-bottom-color: var(--rule-strong);
+}
+
+.well.has-error {
+  border-bottom-color: var(--danger);
+}
+
+.name-input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  font-size: 1.15rem; /* over 16px, so iOS never zooms on focus */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  background: transparent;
+}
+
+.name-input::placeholder,
+.amount-input::placeholder {
+  color: var(--ink-soft);
+  opacity: 0.55;
+  font-weight: 500;
+}
+
+/* --- the amount: the biggest thing on the page -------------- */
+
+.plate {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 72px;
+}
+
+.rupee {
+  flex: none;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.amount-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  text-align: right;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(2.5rem, 13vw, 3.2rem);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  background: transparent;
+}
+
+.hint {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.hint.is-error {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* --- RD / FD sections: quiet until they hold something ------ */
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  margin: 0;
+}
+
+.section-note {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.deposit {
+  margin-top: 16px;
+}
+
+.deposit-top {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.deposit-top .well {
+  flex: 1;
+  min-width: 0;
+}
+
+.plate.is-small {
+  min-height: 50px;
+}
+
+.amount-input.is-small {
+  min-height: 50px;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+/* The × sits on the amount's own baseline rule, not above it. */
+.remove {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.remove:active {
+  color: var(--ink);
+}
+
+.scheme-input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  background: transparent;
+}
+
+.scheme-input::placeholder {
+  color: var(--ink-soft);
+  opacity: 0.55;
+}
+
+.section-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.add {
+  min-height: 40px;
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.add:active {
+  opacity: 0.6;
+}
+
+/* Same treatment as .send:disabled. Only the admin's entry editor uses it — on
+   the agent's form the add button is taken away and replaced by the reason
+   instead, because there the reason is a limit, and a limit is worth a sentence.
+   In the editor the button that goes dim is Save, which has to stay where it is,
+   and what it is waiting for is said under the box it is waiting on. */
+.add:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.section-total {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.section-total strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* --- the three colours ------------------------------------- */
+
+/* A 9px swatch before a label. The same one is used in the receipt lines and
+   in the admin chart's legend, so the colours mean one thing in both places. */
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+
+.key-renewal::before {
+  background: var(--c-renewal);
+}
+
+.key-rd::before {
+  background: var(--c-rd);
+}
+
+.key-fd::before {
+  background: var(--c-fd);
+}
+
+/* One modifier on the section carries its colour to the amounts inside it. */
+.section.is-rd .rupee,
+.section.is-rd .amount-input,
+.section.is-rd .add {
+  color: var(--c-rd);
+}
+
+.section.is-fd .rupee,
+.section.is-fd .amount-input,
+.section.is-fd .add {
+  color: var(--c-fd);
+}
+
+/* --- send: the one solid shape ------------------------------ */
+
+.send {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: opacity 140ms var(--ease);
+}
+
+.send:active {
+  opacity: 0.82;
+}
+
+.send:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* --- receipt ----------------------------------------------- */
+
+.receipt {
+  animation: settle 300ms var(--ease);
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.seal {
+  color: var(--accent);
+  margin-bottom: 22px;
+  line-height: 0;
+}
+
+.receipt-name {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  margin: 12px 0 0;
+}
+
+.receipt-amount {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(2.5rem, 13vw, 3.2rem);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  margin: 24px 0 0;
+}
+
+.receipt-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  margin: 2px 0 22px;
+}
+
+.receipt-lines {
+  border-top: 1px solid var(--rule);
+  margin-bottom: 6px;
+}
+
+.receipt-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+}
+
+.receipt-line strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt-note {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 14px 0 30px;
+  max-width: 28ch;
+}
+
+/* A refused report. Red appears on this screen and nowhere else on it, so it
+   cannot be read as one of the three money colours — colour means money here,
+   except for this one thing, which is why this one thing is red. */
+.seal.is-refused {
+  color: var(--danger);
+}
+
+.receipt-note.is-error {
+  color: var(--danger);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.ghost {
+  min-height: 48px;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  cursor: pointer;
+}
+
+.ghost:active {
+  opacity: 0.6;
+}
+
+.credit {
+  width: 100%;
+  max-width: 400px;
+  margin: 24px 0 auto;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  opacity: 0.6;
+}
+
+/* --- the game board ------------------------------------------ */
+
+/* Everything else in this app is a white card because it is a form to be filled
+   in. A standing is meant to be enjoyed, so this one block is allowed to be loud:
+   a dark green field, gold on it, a podium with the winner standing highest.
+   Gold, silver and bronze are the only colours here that are not one of the three
+   money colours — a medal cannot be mistaken for rupees, so "colour means money"
+   still holds everywhere it matters. */
+.board {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 14px;
+  padding: 16px 16px 18px;
+  border-radius: var(--radius);
+  background: linear-gradient(165deg, #14513f 0%, #0c3d2e 100%);
+  box-shadow: var(--lift);
+}
+
+/* The admin's copy of the board, sitting inside a white settings card rather than
+   on the wash: same board, so what is typed is what the agents get. */
+.board.is-preview {
+  margin: 12px 0 0;
+}
+
+/* Fourteen scraps of paper falling behind the podium, in CSS alone — no library,
+   no canvas, nothing to load. They fall behind the names, never over them. */
+.fetti {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.board-tag,
+.podium,
+.board-more,
+.league {
+  position: relative;
+  z-index: 1;
+}
+
+.bit {
+  position: absolute;
+  top: -14px;
+  width: 6px;
+  height: 10px;
+  border-radius: 1px;
+  opacity: 0.7;
+  animation: fall 4200ms linear infinite;
+}
+
+/* The second seven share these colours, so they are given their own timing and a
+   nudge sideways — otherwise each pair would fall as a single scrap. */
+.bit:nth-child(n + 8) {
+  margin-left: 26px;
+  animation-duration: 5600ms;
+  animation-delay: -3100ms;
+}
+
+.bit-0 {
+  left: 4%;
+  background: var(--gold);
+  animation-delay: -200ms;
+}
+
+.bit-1 {
+  left: 18%;
+  background: var(--silver);
+  animation-delay: -1400ms;
+}
+
+.bit-2 {
+  left: 31%;
+  background: var(--bronze);
+  animation-delay: -2600ms;
+}
+
+.bit-3 {
+  left: 45%;
+  background: var(--gold);
+  animation-delay: -800ms;
+}
+
+.bit-4 {
+  left: 58%;
+  background: rgba(255, 255, 255, 0.72);
+  animation-delay: -3400ms;
+}
+
+.bit-5 {
+  left: 72%;
+  background: var(--gold);
+  animation-delay: -1900ms;
+}
+
+.bit-6 {
+  left: 86%;
+  background: var(--silver);
+  animation-delay: -3900ms;
+}
+
+@keyframes fall {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+  to {
+    transform: translateY(320px) rotate(420deg);
+  }
+}
+
+.board-tag {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.cup {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+/* --- the podium --------------------------------------------- */
+
+/* Read left to right it is second, first, third, so the winner stands in the
+   middle on the tallest block. The order comes from podiumOrder(); the heights
+   come from the medal class, so the ranking is legible before a figure is read. */
+.podium {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.medal {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+/* The winner's medal is the biggest thing on the board. */
+.step.is-gold .medal {
+  font-size: 1.9rem;
+}
+
+.step-name {
+  max-width: 100%;
+  margin-top: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-points {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Two people level on points are both first — the board says so rather than
+   quietly putting one above the other. */
+.draw {
+  margin-top: 4px;
+  padding: 1px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* The block they stand on, with the place written into it. */
+.block {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 7px;
+  padding-top: 5px;
+  border-radius: 4px 4px 0 0;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(12, 61, 46, 0.6);
+}
+
+.step.is-gold .block {
+  height: 58px;
+  background: var(--gold);
+}
+
+.step.is-silver .block {
+  height: 40px;
+  background: var(--silver);
+}
+
+.step.is-bronze .block {
+  height: 30px;
+  background: var(--bronze);
+}
+
+/* --- the rest of the team, one tap away --------------------- */
+
+/* An agent came here to type a figure, so a twenty-name list stays folded until
+   it is asked for. */
+.board-more {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+}
+
+.board-more:active {
+  opacity: 0.65;
+}
+
+.league {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rung {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.rung-place {
+  flex: none;
+  min-width: 22px;
+  font-weight: 700;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.rung-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rung-points {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* Over the form, not part of it. One tap gets past it — the button, the corner
+   ×, the dimmed area around it, or Escape — because an agent came here to type a
+   figure and must never feel held up by an announcement. */
+.pop-back {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px calc(20px + env(safe-area-inset-right))
+    calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+  overflow-y: auto;
+  background: rgba(16, 18, 21, 0.45);
+  animation: pop-in 160ms var(--ease);
+}
+
+.pop {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: auto; /* centres it, and scrolls cleanly when the picture is tall */
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(16, 18, 21, 0.22);
+  overflow: hidden; /* the picture's corners follow the card's */
+}
+
+/* Full width at the top of the card. Capped in viewport height so a portrait
+   poster cannot push the words and the button off a phone screen. */
+.pop-img {
+  display: block;
+  width: 100%;
+  max-height: 46vh;
+  object-fit: cover;
+  background: var(--wash); /* the space it will fill, while it loads */
+}
+
+.pop-body {
+  padding: 16px 18px 18px;
+}
+
+.pop-tag {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.pop-title {
+  margin: 6px 0 0;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* pre-line, so a few short lines typed in the admin stay a few short lines. */
+.pop-text {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-mid);
+  white-space: pre-line;
+}
+
+/* The way out, as plain as the send button and the same shape. */
+.pop-close {
+  display: block;
+  width: calc(100% - 36px);
+  min-height: 48px;
+  margin: 0 18px 18px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* A second way out for someone who took it in at a glance. The hairline is what
+   keeps it visible on a words-only card, where it sits on white. */
+.pop-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The admin's preview: the very same card, sitting on the page instead of over
+   it, so what you are writing is what an agent will get. No backdrop, no way
+   out — there is nothing to escape from here. */
+.pop.is-preview {
+  max-width: 320px;
+  margin: 12px 0 0;
+  box-shadow: var(--lift);
+}
+
+.pop.is-preview .pop-img {
+  max-height: 200px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* The rule above only shortens an animation, which would leave the confetti
+     frozen halfway down the board. Someone who asked for less motion gets none. */
+  .fetti {
+    display: none;
+  }
+}
+
+/* Short phones, and any phone with its keyboard open. */
+@media (max-height: 660px) {
+  .head {
+    margin-bottom: 12px;
+  }
+  .panel,
+  .section {
+    padding: 16px 16px;
+    margin-bottom: 10px;
+  }
+  .field {
+    margin-bottom: 18px;
+  }
+  .plate,
+  .amount-input {
+    min-height: 62px;
+  }
+  .amount-input {
+    font-size: clamp(2.1rem, 11vw, 2.7rem);
+  }
+}

@@ -1,0 +1,1084 @@
+/* ===========================================================
+   Manage — the same white-cards-on-a-wash language as the form,
+   but laid out for a desk. The card look lives in index.css
+   (.panel / .section); this file is the wide layout, the chips,
+   the switch, the agent chart and the lock.
+   =========================================================== */
+
+/* This page is meant for a big screen, so it takes one. */
+.admin .card,
+.admin .credit {
+  max-width: 1120px;
+}
+
+/* The month on the left, and opposite it the one button that commits every
+   setting on the page. Save used to sit halfway down the left column, where a
+   long column of settings pushed it below the fold; up here it is level with the
+   heading and never moves, whichever box you were just typing in. */
+.admin .head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.head-text {
+  min-width: 0;
+}
+
+/* Right-aligned, so the button's edge lines up with the right edge of the cards
+   below it and the note under it reads back towards the button. */
+.head-act {
+  flex: none;
+  text-align: right;
+}
+
+/* .send is full-width on the form, where it is the last thing on a phone
+   screen. Here it is a button beside a heading. */
+.head-act .send {
+  width: auto;
+  min-width: 148px;
+  margin-top: 0;
+  padding: 0 26px;
+}
+
+/* "Saved on this device only. Connect the sheet…" is a sentence, so it needs
+   somewhere to wrap rather than stretching the header. */
+.head-act .save-note {
+  max-width: 32ch;
+  margin-left: auto;
+}
+
+/* One column if it is ever opened on a phone, two on the screen it is for. */
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.column {
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 380px minmax(0, 1fr);
+  }
+}
+
+/* The lock: one field, one button, nothing that hints at what is inside. */
+.lock {
+  max-width: 280px;
+}
+
+.pin-input {
+  width: 100%;
+  min-height: 56px;
+  padding: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 0.4em;
+  text-align: center;
+  background: transparent;
+}
+
+.row {
+  margin-top: 16px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+
+/* Two day boxes side by side, sharing one top margin. */
+.pair.is-even {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 14px;
+}
+
+.pair.is-even > .row {
+  margin-top: 0;
+}
+
+.link-line {
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-mid);
+  word-break: break-all;
+}
+
+/* Automatic / pinned, and any other either-or choice. */
+.choice {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.chip {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-mid);
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), color 140ms var(--ease);
+}
+
+.chip.is-on {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.switch-label {
+  font-size: 0.9rem;
+  color: var(--ink-mid);
+}
+
+.switch {
+  min-width: 92px;
+  min-height: 40px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.switch.is-on {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+
+.save-note {
+  margin-top: 12px;
+}
+
+/* A select needs its own arrow back, having lost the browser's. */
+select.scheme-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+    linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position: right 10px center, right 5px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 24px;
+}
+
+/* --- who reported, and how much ----------------------------- */
+
+.agents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+  margin: 14px 0 2px;
+}
+
+.agent {
+  display: grid;
+  gap: 1px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease);
+}
+
+.agent.is-on {
+  border-color: var(--rule-strong);
+}
+
+.agent-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-total {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nothing this month is a grey dash, never a green ₹0 — green means money came in. */
+.agent-total.is-none {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.agent-when {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- the chart: plain divs, no library ---------------------- */
+
+.chart-head {
+  margin-top: 22px;
+}
+
+.chart-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.chart-wrap {
+  margin: 14px 0 4px;
+}
+
+/* Scale on the left, bars on the right, both exactly the same height. */
+.plot {
+  display: flex;
+  gap: 10px;
+}
+
+/* The padding matches the bars' own margins — 20px of value labels above and
+   18px of month labels below — less half a line, so each figure sits on the
+   line it belongs to. */
+.plot-scale {
+  flex: none;
+  box-sizing: border-box;
+  width: 34px;
+  height: 190px;
+  padding: 14px 0 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  font-size: 0.62rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Four lines behind the bars: the axis, then the quarter, half and
+   three-quarter marks, each drawn as a background so it runs the whole width
+   while the month labels sit below it. */
+.chart {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 190px;
+  background-image:
+    linear-gradient(var(--rule), var(--rule)),
+    linear-gradient(var(--grid), var(--grid)),
+    linear-gradient(var(--grid), var(--grid)),
+    linear-gradient(var(--grid), var(--grid));
+  background-size: 100% 1px;
+  background-position:
+    0 calc(100% - 18px),
+    0 calc(75% - 8.5px),
+    0 calc(50% + 1px),
+    0 calc(25% + 10.5px);
+  background-repeat: no-repeat;
+}
+
+.chart-col {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  position: relative; /* the hover card and the beside-the-bar figures hang off this */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chart-value {
+  height: 16px;
+  margin-bottom: 4px;
+  font-size: 0.62rem;
+  line-height: 16px;
+  color: var(--ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+/* column-reverse means the first segment sits on the axis. A bar stays a bar:
+   with one month reported it must not spread across the whole card. */
+.chart-bar {
+  flex: 1;
+  width: 100%;
+  max-width: 44px;
+  min-height: 0;
+  position: relative; /* a sliver's figure is placed against this */
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+}
+
+.seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* The figure written on its own band. White, because all three colours are
+   dark enough that white is the readable choice on every one of them. */
+.seg-in {
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A band too thin to hold its figure writes it beside the bar instead, in its
+   own colour, level with the band it belongs to. */
+.seg-out {
+  position: absolute;
+  left: calc(100% + 5px);
+  transform: translateY(50%);
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The last month has no column to its right, so its figures turn inward. */
+.chart-col:last-child .seg-out {
+  left: auto;
+  right: calc(100% + 5px);
+}
+
+.seg:last-child {
+  border-radius: 3px 3px 0 0;
+}
+
+.seg-renewal {
+  background: var(--c-renewal);
+}
+
+.seg-rd {
+  background: var(--c-rd);
+}
+
+.seg-fd {
+  background: var(--c-fd);
+}
+
+/* A month nobody reported: the bar is a hairline, not nothing. */
+.seg-zero {
+  height: 2px;
+  background: var(--rule);
+}
+
+.chart-tick {
+  height: 18px;
+  line-height: 22px;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* --- resting on a month gives the figures in full ----------- */
+
+/* Kept in the page and hidden, rather than added on hover, so nothing has to be
+   measured or moved when it appears. */
+.tip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 3;
+  min-width: 172px;
+  padding: 9px 11px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(16, 18, 21, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease);
+}
+
+.chart-col:hover .tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* The outermost months would hang their card off the edge of the section. */
+.chart-col:first-child .tip {
+  left: 0;
+  transform: none;
+}
+
+.chart-col:last-child .tip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.tip-head {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.tip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.7rem;
+  color: var(--ink-mid);
+}
+
+.tip-num {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tip-row.is-sum {
+  margin-top: 3px;
+  padding-top: 4px;
+  border-top: 1px solid var(--rule);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 0 0;
+  padding-left: 44px; /* clears the scale, so it lines up with the bars */
+  font-size: 0.7rem;
+  color: var(--ink-mid);
+}
+
+/* The swatches themselves (.key) live in index.css — the receipt uses them too. */
+
+/* --- which month am I looking at? --------------------------- */
+
+/* A view, not a setting. It sits on the register rather than up with the
+   settings, because it changes what is on this screen and nothing else — the
+   month the *form* collects is a different control, in the left column. */
+.month-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 6px 12px;
+  background: var(--wash);
+  border-radius: 8px;
+}
+
+.month-pick-label {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+}
+
+/* Narrower than a form field: it is a control, not an answer. */
+.month-select {
+  width: auto;
+  min-width: 152px;
+  min-height: 36px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* --- tables: read them like a spreadsheet -------------------- */
+
+/* Narrow screens scroll the table sideways rather than crushing the columns. */
+.sheet-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+
+.sheet {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+/* Every cell ruled on all four sides — the grid is what makes a column of
+   figures readable at a glance. */
+.sheet th,
+.sheet td {
+  padding: 7px 9px;
+  border: 1px solid var(--rule);
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* A figure must never break across two lines. Words may, and letting the two word
+   columns wrap is what keeps the whole table inside its card — otherwise the
+   table's own minimum width runs past the card and leaves a bar to drag along the
+   bottom of a screen that has room for everything.
+
+   The table is in the selector on purpose. `.sheet td` above is more specific than
+   a bare `.name-cell`, so writing this as a plain class would lose to the nowrap
+   and change nothing whatsoever. */
+.sheet td.name-cell,
+.sheet td.month-cell {
+  white-space: normal;
+}
+
+.month-cell {
+  color: var(--ink-mid);
+}
+
+.sheet thead th {
+  background: var(--wash);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-mid);
+}
+
+.sheet tbody tr:hover td {
+  background: #fafbfc;
+}
+
+/* Figures right-aligned on the same digit width, so the eye can compare them. */
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.name-cell {
+  font-weight: 600;
+}
+
+/* Nothing came in under this column. A blank cell read as "not filled in yet",
+   so the cell says so outright: a mark in the middle, and the whole cell shaded
+   out the way a spreadsheet greys a cell holding no value. The shading is what
+   carries across a wide table — the gaps are countable without reading a single
+   figure. No opacity on this: it would fade the fill along with the mark. */
+.is-nil {
+  background: var(--nil);
+}
+
+.num.is-nil {
+  text-align: center;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+/* Two rules already paint cells — the row hover and the total row — and either
+   would otherwise wash the shading off again. They keep it instead. */
+.sheet tbody tr:hover td.is-nil,
+.sheet tfoot td.is-nil {
+  background: var(--nil);
+}
+
+/* One colour per kind of money, header and column together. */
+.c-renewal {
+  color: var(--c-renewal);
+}
+
+.c-rd {
+  color: var(--c-rd);
+}
+
+.c-fd {
+  color: var(--c-fd);
+}
+
+.c-total {
+  font-weight: 600;
+}
+
+.c-count {
+  color: var(--ink-soft);
+}
+
+/* An agent who has nothing yet as of the month being collected: one sentence
+   across the money columns rather than a row of blank cells. */
+.empty-cell {
+  color: var(--ink-soft);
+  font-weight: 500;
+  white-space: normal;
+}
+
+/* --- a deposit column: one line per RD / FD ------------------ */
+
+/* Each deposit the agent typed keeps its own line: the scheme name they wrote on
+   the left, the figure on the right where the column's digits line up. */
+.deps {
+  display: grid;
+  gap: 2px;
+}
+
+.dep {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dep-name {
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink-soft);
+  /* A long scheme name is trimmed rather than pushing the whole grid wider — and
+     this cap is one of the two things that decide the table's minimum width, so it
+     is deliberately mean. */
+  max-width: 104px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dep-num {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Two or more, added up under a hairline — this subtotal is what the row's Total
+   and the column's Total are made of, so the arithmetic stays visible. */
+.dep.is-sum {
+  margin-top: 2px;
+  padding-top: 3px;
+  border-top: 1px solid var(--rule);
+}
+
+.dep.is-sum .dep-num {
+  font-weight: 600;
+}
+
+/* The bottom line: every report added up, whatever the list is showing. */
+.sheet tfoot td {
+  background: var(--wash);
+  font-weight: 600;
+}
+
+.acts {
+  width: 1px;
+  padding: 4px 6px;
+  text-align: right;
+}
+
+/* ✎ corrected here, a grid for edited in the sheet, ✱ not in the sheet yet. */
+.flag {
+  margin-left: 4px;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+/* The drawn mark has to sit on the text baseline like the two written ones do,
+   or the row's name appears to hop when a sheet edit arrives. */
+.flag-grid {
+  vertical-align: -1px;
+}
+
+/* --- how old are these figures? ------------------------------ */
+
+/* Between the heading and the table: where the register was read from, how long
+   ago, and the button that asks again. */
+.read-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.read-word {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--ink-mid);
+}
+
+/* Not red — nothing is wrong, the figures are simply older than they look. Only
+   the weight drops, which is enough to read as "less certain". */
+.read-word.is-stale {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.read-line .mini {
+  margin-left: auto;
+}
+
+/* --- what the marks mean ------------------------------------- */
+
+/* A definition list, because that is what it is: three marks, three meanings.
+   Laid out as a two-column grid so every meaning starts at the same place down
+   the page instead of wherever its mark happened to end. */
+.legend {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 3px 8px;
+  margin: 12px 0 0;
+}
+
+.legend-mark {
+  justify-self: center;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.legend-word {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--ink-mid);
+}
+
+/* Small enough to stay out of the way, still a 32px tap target. */
+.mini {
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-mid);
+  cursor: pointer;
+  transition: color 140ms var(--ease);
+}
+
+.mini:hover {
+  color: var(--ink);
+}
+
+.mini.is-danger {
+  color: var(--danger);
+}
+
+/* Correcting a report opens the editor across the whole row. */
+.sheet .is-editing td {
+  background: var(--wash);
+}
+
+.edit-cell {
+  padding: 12px;
+  white-space: normal;
+}
+
+/* The editor replaces the row it belongs to, so its first field needs no gap. */
+.editor > .row:first-child {
+  margin-top: 0;
+}
+
+.editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.editor-foot .section-total {
+  margin-left: auto;
+}
+
+/* A row inside the editor: scheme, then amount, then the × that drops it. */
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 32px;
+  align-items: end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.line-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.drop {
+  height: 40px;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.drop:hover {
+  color: var(--danger);
+}
+
+/* --- the game board's rows ---------------------------------- */
+
+/* The board keeps its own row rather than borrowing the entry editor's `.line`:
+   a name, a figure, and the × that takes someone off the board. Headed once at
+   the top instead of on every row — a stack of unlabelled boxes is a puzzle. */
+.player-head,
+.player {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 32px;
+  align-items: end;
+  gap: 8px;
+}
+
+.player-head {
+  margin-top: 14px;
+}
+
+.player {
+  margin-top: 8px;
+}
+
+.player-head .label {
+  margin: 0;
+}
+
+/* The figure's heading sits over the right-hand edge, because the figure in the
+   box under it is right-aligned too. The third column is left unheaded on
+   purpose: a word over the × would only shout. */
+.player-head .label + .label {
+  text-align: right;
+}
+
+.player-points {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* On the narrowest phones the figure box gives way rather than crushing the name.
+   The row still reads left to right — it never becomes a stack. */
+@media (max-width: 380px) {
+  .player-head,
+  .player {
+    grid-template-columns: minmax(0, 1fr) 68px 28px;
+  }
+}
+
+/* Taking something away is never the accent colour. It is the one red on the
+   page, the same red the register's own delete uses. */
+.add.is-danger {
+  color: var(--danger);
+}
+
+/* --- the popup's boxes -------------------------------------- */
+
+/* A few lines rather than one. A textarea is not covered by the `button, input`
+   reset in index.css, so it has to be told the font itself or it falls back to
+   the browser's monospace default. */
+.note-input {
+  display: block;
+  width: 100%;
+  min-height: 76px;
+  padding: 8px 0;
+  font-family: var(--body);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  background: transparent;
+  border: 0;
+  resize: vertical;
+}
+
+.note-input:focus {
+  outline: none;
+}
+
+/* Stands in for the text box when the picture is the picture itself and there is
+   no name to show. Reads as a filled slot rather than an empty field. */
+.held {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--wash);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.held-word {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+}
+
+/* The bin: reports that were deleted and can be put back. One row per report,
+   borrowing .held for the box because it is the same object — a filled slot with a
+   single button on the right. */
+.bin {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+/* Two lines inside the slot rather than one. .held-word keeps everything on a single
+   clipped line, which is right for a file name and wrong here: on a phone the agent's
+   name would be competing with the month and the figure for the same 200 pixels. */
+.bin-what {
+  display: grid;
+  gap: 1px;
+  white-space: normal;
+}
+
+.bin-who {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What it was worth and when it went. Tabular figures so a column of them lines up. */
+.bin-when {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The file picker is a <label> so the real <input type="file"> can be hidden and
+   still be reachable by keyboard. Only the label needs to look like a button. */
+.add.is-file {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* Every poster uploaded so far, so one can be put back up without hunting for the
+   file again. Thumbnails, because a file name means nothing when they are all
+   called poster-something. They come from the server now, not from a Drive
+   folder — the pictures live in Postgres and the shelf is GET /api/images. */
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* One tile holds two buttons — use this picture, and delete it — so the grid cell
+   is a box around them and the × can sit in its corner. */
+.shelf-item {
+  position: relative;
+}
+
+.shelf-pic {
+  display: block;
+  /* Width comes from the wrapper now rather than from being the grid item. */
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  background: var(--wash);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* The × on a thumbnail: small, in the corner, over the picture. Held on a white
+   disc because a poster can be any colour underneath and a bare × would vanish
+   into half of them. Grey until it is hovered or armed — deleting is not what the
+   shelf is for, and the eye should land on the picture first. */
+.shelf-drop {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 18px;
+  text-align: center;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.shelf-drop:hover,
+.shelf-drop.is-on {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.shelf-drop:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* The one in use is marked by a near-black rule, not a colour: on this page a
+   colour always means a kind of money, never which thing is selected. */
+.shelf-pic.is-on {
+  border-color: var(--rule-strong);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+}
+
+.shelf-pic img {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+}
+
+.shelf-name {
+  display: block;
+  padding: 5px 6px;
+  font-size: 0.66rem;
+  line-height: 1.3;
+  color: var(--ink-mid);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-label {
+  margin-top: 18px;
+}
+
+/* On a phone the columns are too narrow to write anything beside a bar. The
+   figures are still on the wide bands, in the hover card and in the table. */
+@media (max-width: 640px) {
+  .seg-out {
+    display: none;
+  }
+
+  /* No room for a heading and a button side by side: Save goes back to being a
+     full-width bar, under the month rather than beside it. */
+  .admin .head {
+    display: block;
+  }
+
+  .head-act {
+    margin-top: 16px;
+    text-align: left;
+  }
+
+  .head-act .send {
+    width: 100%;
+  }
+
+  .head-act .save-note {
+    max-width: none;
+    margin-left: 0;
+  }
+}

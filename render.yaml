@@ -1,0 +1,80 @@
+# One web service, serving three things on one origin: /form/, /admin/ and /api/*.
+#
+# Render reads this file when you point it at this repository ("New → Blueprint"),
+# so the service is made from what is written here instead of from a form you fill
+# in by hand. Change a line here and the next deploy picks it up.
+#
+# There is deliberately no `databases:` block. Render's free Postgres expires 30
+# days after it is created and the data goes 14 days later, which is no way to keep
+# a register that is meant to hold months of reports. Point DATABASE_URL at a
+# database that does not expire instead — PUBLISH.md walks through Neon.
+
+services:
+  - type: web
+    name: renewal-register
+    runtime: node
+    plan: free
+
+    # Must match the region your Neon project is in, because every query goes from
+    # this process to Neon and back. A server in Oregon talking to a database in
+    # Singapore adds most of a second to a page that makes a few queries — and
+    # Oregon is what Render picks if this line is missing.
+    #
+    # Not sure which region Neon gave you? It is in the connection string's
+    # hostname: ...ap-southeast-1.aws.neon.tech is Singapore.
+    region: singapore
+
+    # The Express app lives in server/, so that is where npm start is run.
+    rootDir: server
+
+    # Two installs and a build, in one line, because the build starts in server/:
+    #
+    #   cd ..                        the project root, where the frontend lives
+    #   npm install --include=dev    --include=dev is NOT optional. NODE_ENV is
+    #                                production below, and npm reads that and skips
+    #                                devDependencies — vite is a devDependency, so
+    #                                without this flag the build dies on
+    #                                "vite: not found".
+    #   npm run build                writes ../dist, which src/app.js serves if it
+    #                                is there
+    #   cd server && npm install     express and pg for this process
+    buildCommand: cd .. && npm install --include=dev && npm run build && cd server && npm install
+    startCommand: npm start
+
+    # Answers 200 even when Postgres is unreachable, on purpose: a health check that
+    # fails during a database blip is a health check that gets the process killed.
+    healthCheckPath: /api/health
+
+    envVars:
+      # This is what makes the session cookie `Secure`. Without it the cookie would
+      # travel over plain http, and on Render there is no plain http anyway.
+      - key: NODE_ENV
+        value: production
+
+      # Render terminates TLS in front of this process. Without this every request
+      # looks like it came from Render's proxy, and the login rate limit would then
+      # be shared by every phone instead of being one per address.
+      - key: TRUST_PROXY
+        value: "1"
+
+      # `auto` turns TLS on for any database that is not on this machine, which is
+      # every hosted one. See the certificate note in server/README.md.
+      - key: DATABASE_SSL
+        value: auto
+
+      # sync: false means "ask me, and never store it in this file". Set these three
+      # in the Render dashboard the first time the blueprint is applied.
+      #
+      #   DATABASE_URL        the Neon connection string, password included
+      #   SHEET_WEBHOOK_URL   the Apps Script /exec URL, so the Google Sheet keeps
+      #                       getting a copy. Leave it empty for no sheet copy.
+      #   ADMIN_PASSWORD      only used once, against an empty database, to create
+      #                       the admin account. If you already set the password
+      #                       locally against this same database, leave it empty —
+      #                       the account is already there and this is ignored.
+      - key: DATABASE_URL
+        sync: false
+      - key: SHEET_WEBHOOK_URL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
