@@ -304,7 +304,7 @@ select.scheme-input {
   flex: 1;
   min-width: 0;
   height: 100%;
-  position: relative; /* the hover card and the beside-the-bar figures hang off this */
+  position: relative; /* the hover card hangs off this */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -319,76 +319,80 @@ select.scheme-input {
   font-variant-numeric: tabular-nums;
 }
 
-/* column-reverse means the first segment sits on the axis. A bar stays a bar:
-   with one month reported it must not spread across the whole card. */
-.chart-bar {
+/* One month: a light box with three bars standing side by side on the axis, so
+   the schemes compare with each other as well as the months do. A month stays a
+   month: with one month reported it must not spread across the whole card. */
+.chart-group {
   flex: 1;
   width: 100%;
-  max-width: 44px;
+  max-width: 92px;
   min-height: 0;
-  position: relative; /* a sliver's figure is placed against this */
   display: flex;
-  flex-direction: column-reverse;
-  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0 5px;
+  border-radius: 6px 6px 0 0;
+  /* Just enough tint to read as one slot on a white card, and light enough that
+     the three colours standing in it still carry. */
+  background: #f7f8fa;
 }
 
-.seg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  overflow: hidden;
+/* Each bar owns a column of the month, so a figure can never land over the bar
+   beside it — which is exactly what the stacked version could not avoid. */
+.gslot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  max-width: 24px;
+  height: 100%;
 }
 
-/* The figure written on its own band. White, because all three colours are
-   dark enough that white is the readable choice on every one of them. */
-.seg-in {
-  font-size: 0.6rem;
-  font-weight: 600;
-  line-height: 1;
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-}
-
-/* A band too thin to hold its figure writes it beside the bar instead, in its
-   own colour, level with the band it belongs to. */
-.seg-out {
+.gbar {
   position: absolute;
-  left: calc(100% + 5px);
-  transform: translateY(50%);
-  font-size: 0.6rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 3px 3px 0 0;
+}
+
+.gbar-renewal {
+  background: var(--c-renewal);
+}
+
+.gbar-rd {
+  background: var(--c-rd);
+}
+
+.gbar-fd {
+  background: var(--c-fd);
+}
+
+/* Nothing collected under this scheme: a grey hairline, never a coloured one, so
+   none cannot be read as a little. */
+.gbar-nil {
+  height: 2px;
+  background: var(--rule);
+}
+
+/* Each bar's own figure. Both placements are measured from the bottom against
+   the same height the bar was drawn to, so the two never disagree. */
+.gfig {
+  position: absolute;
+  left: 50%;
+  z-index: 1; /* the bar is positioned too, so the figure is lifted over it */
+  transform: translateX(-50%);
+  font-size: 0.58rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-/* The last month has no column to its right, so its figures turn inward. */
-.chart-col:last-child .seg-out {
-  left: auto;
-  right: calc(100% + 5px);
-}
-
-.seg:last-child {
-  border-radius: 3px 3px 0 0;
-}
-
-.seg-renewal {
-  background: var(--c-renewal);
-}
-
-.seg-rd {
-  background: var(--c-rd);
-}
-
-.seg-fd {
-  background: var(--c-fd);
-}
-
-/* A month nobody reported: the bar is a hairline, not nothing. */
-.seg-zero {
-  height: 2px;
-  background: var(--rule);
+/* Written inside the top of a bar tall enough to hold it. White, because all
+   three colours are dark enough that white is the readable choice on every
+   one of them. */
+.gfig-in {
+  color: #fff;
 }
 
 .chart-tick {
@@ -469,7 +473,10 @@ select.scheme-input {
   color: var(--ink);
 }
 
-.legend {
+/* Which colour is which, under the bars. Its own name, not `.legend`: the marks
+   legend further down this file is a two-column grid, and sharing one class name
+   quietly laid these three swatches out two-per-row. */
+.chart-legend {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -1055,10 +1062,10 @@ select.scheme-input {
   margin-top: 18px;
 }
 
-/* On a phone the columns are too narrow to write anything beside a bar. The
-   figures are still on the wide bands, in the hover card and in the table. */
+/* On a phone a month slot is too narrow to write a figure over a 10px bar. The
+   figures are still in the hover card and in the table under the chart. */
 @media (max-width: 640px) {
-  .seg-out {
+  .gfig {
     display: none;
   }
 

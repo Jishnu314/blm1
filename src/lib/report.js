@@ -77,12 +77,46 @@ export function byAgent(entries = []) {
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 }
 
-/** The tallest month in the lists actually being drawn, so bars share one scale. */
+/**
+ * Every agent added together: one row per month, oldest first.
+ *
+ * Deliberately the same shape as one agent's months, so the register's chart is
+ * the very same chart as an agent's — three schemes side by side, one bar each —
+ * and there is no second way of drawing a month to keep in step with the first.
+ */
+export function byMonth(entries = []) {
+  const months = new Map();
+
+  for (const entry of entries) {
+    const key = entry.month || "";
+    const label = entry.monthLabel || describeKey(key)?.full || key || "—";
+    const month = months.get(key) || blankMonth(key, label);
+    month.renewal += entry.renewal || 0;
+    month.rd += sumRows(entry.rd);
+    month.fd += sumRows(entry.fd);
+    month.count += 1;
+    months.set(key, month);
+  }
+
+  return [...months.values()]
+    .map((month) => ({ ...month, total: month.renewal + month.rd + month.fd }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/**
+ * The tallest single bar in the lists actually being drawn, so every agent's
+ * chart shares one scale.
+ *
+ * It is the tallest *scheme*, not the tallest month: the three schemes stand
+ * side by side in the chart rather than stacked, so a month total is not a
+ * height any bar ever reaches, and scaling to one would leave the whole plot
+ * sitting low with the top quarter always empty.
+ */
 export function tallest(lists = []) {
   let top = 0;
   for (const months of lists) {
     for (const month of months || []) {
-      if (month.total > top) top = month.total;
+      top = Math.max(top, month.renewal || 0, month.rd || 0, month.fd || 0);
     }
   }
   return top;

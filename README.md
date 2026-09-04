@@ -267,20 +267,32 @@ From the page you can:
   reported yet), with everything up to that month on the small line under it. The
   cards are ordered by this month's figure, so the standing is the order.
 - **see each agent month by month** — pick an agent and read six months at a
-  time, ending at the month being collected. Each month is one bar: renewal, new
-  RD and new FD stacked in their three colours, with a scale down the left side
-  and faint lines across. Each band carries its own figure: written on the band
-  when the band is tall enough to hold it, and printed just outside the bar when
-  it is a sliver, nudged apart so two slivers never overprint. Resting on a month
-  brings up a card with all three figures to the rupee and the month's total under
-  a rule. Every agent is drawn to the same scale, so two agents compare honestly,
-  and a month nobody reported is a hairline rather than a gap. Under the chart the
-  same months are listed as a table of exact figures with a total row.
+  time, ending at the month being collected. Each month is a slot holding three
+  bars side by side in their three colours — renewal, new RD, new FD — with a
+  scale down the left side and faint lines across. Each bar carries its own
+  figure: written inside the bar when the bar is tall enough to hold it, and just
+  above the bar when it is not, so a figure always sits over the bar it belongs
+  to. The month's total is written in grey above the slot. Something collected is
+  never drawn shorter than a stub you can see, and a scheme that collected
+  nothing is a grey hairline, so "none" is never read as "a little". Resting on a
+  month brings up a card with all three figures to the rupee and the month's
+  total under a rule. Every agent is drawn to the same scale — the tallest single
+  bar in the window — so two agents compare honestly. Under the chart the same
+  months are listed as a table of exact figures with a total row.
 - **everything per-agent stops at the month being collected.** Pin the collection
   back to July and the chart, the table under it, that table's total and the cards
   all read as July's standing — a report that counts for August is not quietly
   added in. Nothing is hidden: August is still one pick away in the register's
   month switcher.
+- **see every month at a glance, above the register** — the same chart once more,
+  this time over **every agent added together**: six months to the month being
+  collected, each month three bars — renewal, new RD, new FD — with the month's
+  total above them and every figure to the rupee on hover. So the register answers
+  "what kind of money came in, and when" before you read a single row. It keeps
+  its own scale rather than the agents' one, because a team month is several
+  agents' worth of money, and it always reads to the collected month whichever
+  month the list underneath is showing: the switcher picks the rows you read, not
+  the six months the year is judged over.
 - **read and maintain every report** — the register is a spreadsheet: one row per
   report, a column each for renewal, new RD, new FD and that report's total, and a
   grey total row at the bottom that adds up *every* report even when the list is
@@ -537,10 +549,12 @@ src/config.js               the first frame's defaults: month, grace days, the r
 src/App.jsx                 the screen: name, renewal, RD, FD, send, receipt
 src/main.jsx                mounts the form
 src/manage.jsx              mounts the admin page
-src/admin/AdminApp.jsx      sign in, the settings, the chart, the register, the bin
-src/admin/AgentChart.jsx    one agent's six months as stacked bars, each band
-                            carrying its own figure, with a hover card — no
-                            chart library
+src/admin/AdminApp.jsx      sign in, the settings, the two charts, the register,
+                            the bin
+src/admin/AgentChart.jsx    six months as bars — one agent's or everyone's — each
+                            month a slot holding three bars, renewal, new RD, new
+                            FD, each carrying its own figure, with a hover card —
+                            no chart library
 src/admin/EntryEditor.jsx   correcting one report in place
 src/components/AmountField  the ₹ renewal field (device number pad)
 src/components/DepositSection  one RD/FD section: repeatable amount + scheme rows
@@ -560,10 +574,11 @@ src/lib/submit.js           one attempt at the API per action — send, correct,
 src/lib/settings.js         what the admin changed: this device first frame, the
                             server for everyone
 src/lib/images.js           shrink a chosen picture, upload it, list the shelf
-src/lib/report.js           entries grouped by agent, the chart's six-month
-                            window, the scale every bar is drawn against, the
-                            months that have reports, and the cut-off that keeps
-                            every per-agent figure at the month being collected
+src/lib/report.js           entries grouped by agent and again by month, the
+                            chart's six-month window, the tallest single bar every
+                            chart is scaled to, the months that have reports, and
+                            the cut-off that keeps every per-agent figure at the
+                            month being collected
 src/lib/rows.js             ids for repeatable rows, and the limits those rows have
 src/lib/month.js            the month the form is collecting for, and the window
 src/lib/board.js            reads the typed list, ranks it, hands out the medals

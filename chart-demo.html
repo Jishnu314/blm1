@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The charts, as they will look</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* A throwaway preview. Every rule below is copied from src/admin.css and
+         src/index.css, and the markup is built by the same logic as
+         src/admin/AgentChart.jsx — so what you see here is what the page draws. */
+
+      :root {
+        color-scheme: light;
+        --paper: #ffffff;
+        --wash: #f2f4f6;
+        --ink: #101215;
+        --ink-mid: #6b7280;
+        --ink-soft: #9aa1ac;
+        --rule: #e4e6ea;
+        --grid: #eef1f4;
+        --c-renewal: #0f6b58;
+        --c-rd: #b56a12;
+        --c-fd: #3c5b9b;
+      }
+
+      body {
+        margin: 0;
+        padding: 28px 20px 60px;
+        background: var(--wash);
+        color: var(--ink);
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        max-width: 760px;
+        margin: 0 auto;
+      }
+
+      .note {
+        margin: 0 0 22px;
+        font-size: 0.8rem;
+        line-height: 1.5;
+        color: var(--ink-mid);
+      }
+
+      .section {
+        margin-bottom: 22px;
+        padding: 22px;
+        background: var(--paper);
+        border-radius: 14px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .section-note {
+        font-size: 0.72rem;
+        color: var(--ink-soft);
+      }
+
+      .chart-title {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+
+      .chart-wrap {
+        margin: 14px 0 4px;
+      }
+
+      .plot {
+        display: flex;
+        gap: 10px;
+      }
+
+      .plot-scale {
+        flex: none;
+        box-sizing: border-box;
+        width: 34px;
+        height: 190px;
+        padding: 14px 0 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        text-align: right;
+        font-size: 0.62rem;
+        line-height: 1;
+        color: var(--ink-soft);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .chart {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        height: 190px;
+        background-image:
+          linear-gradient(var(--rule), var(--rule)),
+          linear-gradient(var(--grid), var(--grid)),
+          linear-gradient(var(--grid), var(--grid)),
+          linear-gradient(var(--grid), var(--grid));
+        background-size: 100% 1px;
+        background-position:
+          0 calc(100% - 18px),
+          0 calc(75% - 8.5px),
+          0 calc(50% + 1px),
+          0 calc(25% + 10.5px);
+        background-repeat: no-repeat;
+      }
+
+      .chart-col {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .chart-value {
+        height: 16px;
+        margin-bottom: 4px;
+        font-size: 0.62rem;
+        line-height: 16px;
+        color: var(--ink-mid);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .chart-group {
+        flex: 1;
+        width: 100%;
+        max-width: 92px;
+        min-height: 0;
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+        padding: 0 5px;
+        border-radius: 6px 6px 0 0;
+        background: #f7f8fa;
+      }
+
+      .gslot {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        max-width: 24px;
+        height: 100%;
+      }
+
+      .gbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 3px 3px 0 0;
+      }
+
+      .gbar-renewal {
+        background: var(--c-renewal);
+      }
+
+      .gbar-rd {
+        background: var(--c-rd);
+      }
+
+      .gbar-fd {
+        background: var(--c-fd);
+      }
+
+      .gbar-nil {
+        height: 2px;
+        background: var(--rule);
+      }
+
+      .gfig {
+        position: absolute;
+        left: 50%;
+        z-index: 1;
+        transform: translateX(-50%);
+        font-size: 0.58rem;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .gfig-in {
+        color: #fff;
+      }
+
+      .c-renewal {
+        color: var(--c-renewal);
+      }
+
+      .c-rd {
+        color: var(--c-rd);
+      }
+
+      .c-fd {
+        color: var(--c-fd);
+      }
+
+      .chart-tick {
+        height: 18px;
+        line-height: 22px;
+        font-size: 0.62rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .tip {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        z-index: 3;
+        min-width: 172px;
+        padding: 9px 11px;
+        transform: translateX(-50%);
+        display: grid;
+        gap: 3px;
+        text-align: left;
+        background: var(--paper);
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(16, 18, 21, 0.12);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 120ms cubic-bezier(0.2, 0.7, 0.3, 1);
+      }
+
+      .chart-col:hover .tip {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .chart-col:first-child .tip {
+        left: 0;
+        transform: none;
+      }
+
+      .chart-col:last-child .tip {
+        left: auto;
+        right: 0;
+        transform: none;
+      }
+
+      .tip-head {
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+
+      .tip-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 0.7rem;
+        color: var(--ink-mid);
+      }
+
+      .tip-num {
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .tip-row.is-sum {
+        margin-top: 3px;
+        padding-top: 4px;
+        border-top: 1px solid var(--rule);
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      .chart-legend {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 12px 0 0;
+        padding-left: 44px;
+        font-size: 0.7rem;
+        color: var(--ink-mid);
+      }
+
+      .key {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .key::before {
+        content: "";
+        flex: none;
+        width: 9px;
+        height: 9px;
+        border-radius: 2px;
+        background: var(--rule);
+      }
+
+      .key-renewal::before {
+        background: var(--c-renewal);
+      }
+
+      .key-rd::before {
+        background: var(--c-rd);
+      }
+
+      .key-fd::before {
+        background: var(--c-fd);
+      }
+
+      /* On a phone a month slot is too narrow to write a figure over a 10px bar. */
+      @media (max-width: 640px) {
+        .gfig {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <p class="note">
+        A throwaway preview of the two charts, drawn with the CSS and the logic the
+        app actually ships. <strong>August 2026</strong> is real — the six rows
+        visible in your screenshot: ₹62,500 of renewal, ₹1,20,000 of new RD,
+        ₹2,25,000 of new FD. May, June and July are made up, so the six-month window
+        has something in it. Rest on a month for the figures in full.
+      </p>
+
+      <section class="section">
+        <div class="section-head">
+          <h3 class="chart-title">Anusreyak</h3>
+          <span class="section-note">6 months to August 2026 · figures in ₹</span>
+        </div>
+        <div id="agent"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h3 class="chart-title">Every month</h3>
+          <span class="section-note">
+            everyone together · 6 months to August 2026 · figures in ₹
+          </span>
+        </div>
+        <div id="team"></div>
+      </section>
+    </div>
+
+    <script>
+      /* Copied from src/admin/AgentChart.jsx and src/lib/report.js, so the preview
+         is a check on the logic as well as on the look. */
+      const INSIDE = 0.12;
+      const FLOOR = "6px";
+      const KINDS = [
+        { kind: "renewal", label: "Renewal" },
+        { kind: "rd", label: "New RD" },
+        { kind: "fd", label: "New FD" },
+      ];
+
+      const round = (v) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10);
+      function short(v) {
+        if (v >= 10000000) return round(v / 10000000) + "cr";
+        if (v >= 100000) return round(v / 100000) + "L";
+        if (v >= 1000) return round(v / 1000) + "k";
+        return String(Math.round(v));
+      }
+
+      const inr = (v) => v.toLocaleString("en-IN");
+
+      function tick(m) {
+        const name = String(m.label).slice(0, 3);
+        return String(m.key).endsWith("-01")
+          ? name + " " + String(m.key).slice(2, 4)
+          : name;
+      }
+
+      function tallest(lists) {
+        let top = 0;
+        for (const months of lists) {
+          for (const m of months) {
+            top = Math.max(top, m.renewal || 0, m.rd || 0, m.fd || 0);
+          }
+        }
+        return top;
+      }
+
+      function barsOf(month, top) {
+        return KINDS.map((one) => {
+          const value = month[one.kind] || 0;
+          const share = value / top;
+          return {
+            kind: one.kind,
+            value,
+            height: "max(" + FLOOR + ", " + (share * 100).toFixed(2) + "%)",
+            inside: share >= INSIDE,
+          };
+        });
+      }
+
+      function slot(bar) {
+        if (bar.value <= 0) return '<div class="gslot"><span class="gbar gbar-nil"></span></div>';
+        const at = bar.inside
+          ? "calc(" + bar.height + " - 13px)"
+          : "calc(" + bar.height + " + 4px)";
+        return (
+          '<div class="gslot">' +
+          '<span class="gbar gbar-' + bar.kind + '" style="height:' + bar.height + '"></span>' +
+          '<b class="' + (bar.inside ? "gfig gfig-in" : "gfig c-" + bar.kind) + '"' +
+          ' style="bottom:' + at + '">' + short(bar.value) + "</b>" +
+          "</div>"
+        );
+      }
+
+      function tip(month) {
+        const rows = KINDS.map(
+          (one) =>
+            '<span class="tip-row"><span class="key key-' + one.kind + '">' +
+            one.label + '</span><span class="tip-num">' +
+            ((month[one.kind] || 0) > 0 ? "₹" + inr(month[one.kind]) : "—") +
+            "</span></span>"
+        ).join("");
+        return (
+          '<div class="tip"><b class="tip-head">' + month.label + "</b>" + rows +
+          '<span class="tip-row is-sum"><span>Total</span><span class="tip-num">' +
+          (month.total > 0 ? "₹" + inr(month.total) : "nothing") +
+          "</span></span></div>"
+        );
+      }
+
+      function chart(months, top) {
+        const cols = months
+          .map(
+            (m) =>
+              '<div class="chart-col">' +
+              '<span class="chart-value">' + (m.total > 0 ? short(m.total) : "") + "</span>" +
+              '<div class="chart-group">' + barsOf(m, top).map(slot).join("") + "</div>" +
+              '<span class="chart-tick">' + tick(m) + "</span>" +
+              tip(m) +
+              "</div>"
+          )
+          .join("");
+
+        return (
+          '<div class="chart-wrap"><div class="plot">' +
+          '<div class="plot-scale"><span>' + short(top) + "</span><span>" +
+          short(top / 2) + "</span><span>0</span></div>" +
+          '<div class="chart">' + cols + "</div></div>" +
+          '<p class="chart-legend"><span class="key key-renewal">Renewal</span>' +
+          '<span class="key key-rd">New RD</span>' +
+          '<span class="key key-fd">New FD</span></p></div>'
+        );
+      }
+
+      /* What monthWindow() hands the chart: six slots, oldest first, a month
+         nobody reported still present and empty. */
+      const M = (key, label, renewal, rd, fd) => ({
+        key,
+        label,
+        renewal,
+        rd,
+        fd,
+        total: renewal + rd + fd,
+      });
+
+      const agentMonths = [
+        M("2026-03", "March 2026", 0, 0, 0),
+        M("2026-04", "April 2026", 0, 0, 0),
+        M("2026-05", "May 2026", 9000, 0, 0),
+        M("2026-06", "June 2026", 11500, 30000, 0),
+        M("2026-07", "July 2026", 12000, 0, 75000),
+        M("2026-08", "August 2026", 13000, 120000, 225000),
+      ];
+
+      const teamMonths = [
+        M("2026-03", "March 2026", 0, 0, 0),
+        M("2026-04", "April 2026", 0, 0, 0),
+        M("2026-05", "May 2026", 41000, 0, 0),
+        M("2026-06", "June 2026", 52000, 30000, 0),
+        M("2026-07", "July 2026", 58000, 0, 75000),
+        M("2026-08", "August 2026", 62500, 120000, 225000),
+      ];
+
+      document.getElementById("agent").innerHTML = chart(
+        agentMonths,
+        tallest([agentMonths])
+      );
+      document.getElementById("team").innerHTML = chart(teamMonths, tallest([teamMonths]));
+    </script>
+  </body>
+</html>

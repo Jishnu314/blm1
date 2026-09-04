@@ -13,7 +13,15 @@ import {
 } from "../lib/entries.js";
 import { whoAmI, signIn, signOut, changePassword, serverStatus } from "../lib/auth.js";
 import { formatINR, toDigits } from "../lib/currency.js";
-import { byAgent, tallest, monthWindow, monthsPresent, upTo, sumMonths } from "../lib/report.js";
+import {
+  byAgent,
+  byMonth,
+  tallest,
+  monthWindow,
+  monthsPresent,
+  upTo,
+  sumMonths,
+} from "../lib/report.js";
 import { popupState, imageSrc } from "../lib/popup.js";
 import { parsePlayers, serialisePlayers, rankPlayers, boardState } from "../lib/board.js";
 import { nextRowId, MAX_NAME } from "../lib/rows.js";
@@ -979,14 +987,24 @@ function Panel({ onSignOut }) {
   const collected = sums.renewal + sums.rd + sums.fd;
 
   // Every agent is charted over the same six months, ending at the month being
-  // collected, and the tallest bar inside that window sets the scale for all of
-  // them — so two agents can be compared without doing arithmetic.
+  // collected, and the tallest single bar inside that window sets the scale for
+  // all of them — so two agents can be compared without doing arithmetic.
   const windows = useMemo(
     () => agents.map((one) => monthWindow(one.months, effective.key, SPAN)),
     [agents, effective.key]
   );
   const months = agent ? monthWindow(agent.months, effective.key, SPAN) : [];
   const scale = tallest(windows);
+
+  // The same six months with every agent added together — what the register is
+  // showing, as a shape. It keeps its own scale rather than the agents' one: a
+  // team month is several agents' worth of money, and one scale for both would
+  // leave whichever chart is smaller drawn along the floor.
+  const teamMonths = useMemo(
+    () => monthWindow(byMonth(entries), effective.key, SPAN),
+    [entries, effective.key]
+  );
+  const teamScale = tallest([teamMonths]);
 
   const formLink = useMemo(() => {
     try {
@@ -2239,6 +2257,26 @@ function Panel({ onSignOut }) {
                   Holding still while you finish — nothing will move under you until you
                   save, cancel or keep.
                 </p>
+              )}
+
+              {/* The register as a shape: every agent added together, month by
+                  month, drawn with the same chart as the agent above — renewal,
+                  new RD and new FD side by side, so a month says which kind of
+                  money it was as well as how much. It always reads to the month
+                  being collected, whichever month the list underneath is showing:
+                  the picker chooses the rows you read, not the six months the
+                  year is judged over. */}
+              {entries.length > 0 && (
+                <>
+                  <div className="section-head chart-head">
+                    <h3 className="chart-title">Every month</h3>
+                    <span className="section-note">
+                      everyone together · {SPAN} months to {effective.full} · figures in ₹
+                    </span>
+                  </div>
+
+                  <AgentChart months={teamMonths} max={teamScale} name="Everyone together" />
+                </>
               )}
 
               {/* Look back at a month that has already been collected. */}

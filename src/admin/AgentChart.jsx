@@ -9,14 +9,19 @@ function short(value) {
   return String(Math.round(value));
 }
 
-/** A band shorter than this cannot hold a figure inside it — the bar area is
-    about 152px tall, so this is roughly 17px against a 14px line of type. */
-const ROOMY = 0.11;
+/** A bar at least this tall can hold its own figure inside its top — the bar
+    area is about 152px, so 12% is roughly 18px against 9px of type. A shorter
+    bar writes its figure just above itself instead. */
+const INSIDE = 0.12;
 
-/** The least distance apart two figures written beside the bar may sit. */
-const APART = 0.1;
+/** The shortest a bar is drawn once anything was collected. ₹13,000 of renewal
+    against a ₹3.7L scale is a third of a pixel, and "a little came in" is worth
+    more on this screen than a truthful third of a pixel — the figure written
+    with the bar is exact either way. A scheme that collected *nothing* is a grey
+    hairline instead, so none is never read as a little. */
+const FLOOR = "6px";
 
-/** Bottom to top, the same order and the same names as everywhere else. */
+/** Left to right, the same order and the same names as everywhere else. */
 const KINDS = [
   { kind: "renewal", label: "Renewal" },
   { kind: "rd", label: "New RD" },
@@ -24,29 +29,22 @@ const KINDS = [
 ];
 
 /**
- * One month split into the bands to draw: how tall each is, and where to write
- * its figure. A band with room takes the figure inside it; a sliver — ₹10,000
- * of renewal against a ₹3.3L month — has it written beside the bar instead,
- * level with the band, because inside there is nowhere for it to go.
+ * One month as three bars: how tall each is drawn, and where its figure goes.
+ *
+ * The height is a CSS `max()` rather than a number, so a bar keeps its true
+ * place on the scale while the floor under it stays a pixel count whatever size
+ * the chart ends up.
  */
-function bandsOf(month, top) {
-  const parts = KINDS.map((one) => ({ ...one, value: month[one.kind] || 0 })).filter(
-    (one) => one.value > 0
-  );
-
-  let base = 0;
-  let lastOutside = -Infinity;
-
-  return parts.map((part) => {
-    const share = part.value / top;
-    const middle = base + share / 2;
-    base += share;
-    const roomy = share >= ROOMY;
-    // Two slivers stacked together would print their figures on top of one
-    // another, so each one is nudged up until it clears the one below it.
-    const at = roomy ? middle : Math.max(middle, lastOutside + APART);
-    if (!roomy) lastOutside = at;
-    return { ...part, share, roomy, at };
+function barsOf(month, top) {
+  return KINDS.map((one) => {
+    const value = month[one.kind] || 0;
+    const share = value / top;
+    return {
+      ...one,
+      value,
+      height: `max(${FLOOR}, ${(share * 100).toFixed(2)}%)`,
+      inside: share >= INSIDE,
+    };
   });
 }
 
@@ -58,15 +56,28 @@ function tick(month) {
 }
 
 /**
- * One agent's months as stacked bars — renewal at the bottom, then new RD, then
- * new FD. Plain divs on purpose: no chart library, nothing to keep updated, and
- * it prints and scales like the rest of the page.
+ * A list of months as bars. Each month is a slot with three bars standing side by
+ * side in it — renewal, then new RD, then new FD, the order the legend reads.
+ * Plain divs on purpose: no chart library, nothing to keep updated, and it prints
+ * and scales like the rest of the page.
  *
- * Four things make a bar readable: the scale down the left, the quarter lines
- * behind it, the month's total written above it, and each band's own figure
- * written on the band. Resting on a month gives all of them in full rupees.
- * `max` is passed in from outside so every agent shares one scale and two of
- * them compare honestly.
+ * The months can be one agent's or every agent added together — the register
+ * draws its own six months with this same component, so there is only ever one
+ * way a month is drawn on this page. `name` only names what is being charted, for
+ * anyone reading the page with a screen reader.
+ *
+ * The three used to be stacked in a single bar per month, until ₹13,000 of
+ * renewal against a ₹3.7L month showed what that costs: the band was a hairline,
+ * its figure had to be written beside the bar, and beside the *last* month means
+ * beside the month before it. Side by side, every figure sits over the bar it
+ * belongs to, and the schemes compare with each other as well as the months do.
+ *
+ * Four things make a month readable: the scale down the left, the quarter lines
+ * behind it, the month's total written above the slot, and each bar's own figure
+ * — inside the bar when it is tall enough to hold it, just above the bar when it
+ * is not. Resting on a month gives all of them in full rupees. `max` is passed
+ * in from outside, and is the tallest single bar rather than the tallest month,
+ * so every agent shares one scale and two of them compare honestly.
  */
 export default function AgentChart({ months, max, name }) {
   const top = max > 0 ? max : 1;
@@ -92,36 +103,37 @@ export default function AgentChart({ months, max, name }) {
 
         <div className="chart" role="img" aria-label={label}>
           {months.map((month) => {
-            const bands = bandsOf(month, top);
-            const slivers = bands.filter((band) => !band.roomy);
+            const bars = barsOf(month, top);
 
             return (
               <div className="chart-col" key={month.key}>
                 <span className="chart-value">{month.total > 0 ? short(month.total) : ""}</span>
 
-                <div className="chart-bar">
-                  {bands.length === 0 ? (
-                    <span className="seg seg-zero" />
-                  ) : (
-                    bands.map((band) => (
-                      <span
-                        key={band.kind}
-                        className={`seg seg-${band.kind}`}
-                        style={{ height: `${Math.max(2, band.share * 100)}%` }}
-                      >
-                        {band.roomy && <b className="seg-in">{short(band.value)}</b>}
-                      </span>
-                    ))
-                  )}
-
-                  {slivers.map((band) => (
-                    <b
-                      key={band.kind}
-                      className={`seg-out c-${band.kind}`}
-                      style={{ bottom: `${band.at * 100}%` }}
-                    >
-                      {short(band.value)}
-                    </b>
+                {/* The month's own slot: one box, three bars standing in it. */}
+                <div className="chart-group">
+                  {bars.map((bar) => (
+                    <div className="gslot" key={bar.kind}>
+                      {bar.value > 0 ? (
+                        <>
+                          <span
+                            className={`gbar gbar-${bar.kind}`}
+                            style={{ height: bar.height }}
+                          />
+                          <b
+                            className={bar.inside ? "gfig gfig-in" : `gfig c-${bar.kind}`}
+                            style={{
+                              bottom: bar.inside
+                                ? `calc(${bar.height} - 13px)`
+                                : `calc(${bar.height} + 4px)`,
+                            }}
+                          >
+                            {short(bar.value)}
+                          </b>
+                        </>
+                      ) : (
+                        <span className="gbar gbar-nil" />
+                      )}
+                    </div>
                   ))}
                 </div>
 
@@ -153,7 +165,7 @@ export default function AgentChart({ months, max, name }) {
         </div>
       </div>
 
-      <p className="legend">
+      <p className="chart-legend">
         <span className="key key-renewal">Renewal</span>
         <span className="key key-rd">New RD</span>
         <span className="key key-fd">New FD</span>
