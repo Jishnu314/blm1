@@ -720,5 +720,3 @@ runs on two. And `DATABASE_SSL=auto` encrypts the connection to the database wit
 checking the certificate, because neither Render's nor Supabase's is signed by
 anything in Node's trust store; if your provider hands you a CA file, wiring it in is
 a real improvement.
-#   b l m 1  
- 
