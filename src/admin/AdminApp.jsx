@@ -559,6 +559,43 @@ function download(entries) {
   URL.revokeObjectURL(url);
 }
 
+const ADMIN_PAGES = [
+  { id: "register", label: "Overview" },
+  { id: "customers", label: "Customers" },
+  { id: "reports", label: "Reports" },
+  { id: "settings", label: "Settings" },
+];
+
+function AdminNavigation({ activeTab, onSelect }) {
+  return (
+    <nav className="admin-nav" aria-label="Admin pages">
+      {ADMIN_PAGES.map((page) => (
+        <button
+          key={page.id}
+          type="button"
+          className={`admin-nav-button${activeTab === page.id ? " is-active" : ""}`}
+          aria-current={activeTab === page.id ? "page" : undefined}
+          onClick={() => onSelect(page.id)}
+        >
+          {page.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function AdminTopbar({ onSignOut, onHome }) {
+  return (
+    <div className="admin-topbar">
+      <button type="button" className="admin-brand" onClick={onHome} aria-label="Go to overview">
+        <span className="admin-brand-mark" aria-hidden="true">MR</span>
+        <span><strong>Monthly Reports</strong><small>Admin workspace</small></span>
+      </button>
+      <button type="button" className="admin-signout" onClick={onSignOut}>Sign out</button>
+    </div>
+  );
+}
+
 function Panel({ onSignOut }) {
   const [activeTab, setActiveTab] = useState(() =>
     ["customers", "reports", "settings"].includes(new URLSearchParams(window.location.search).get("page"))
@@ -1429,20 +1466,14 @@ function Panel({ onSignOut }) {
     <div className="app admin">
       {["customers", "reports"].includes(activeTab) ? (
         <main className="card" style={{ maxWidth: "none" }}>
-          <div className="head-act" style={{ justifyContent: "space-between", marginBottom: 16 }}>
-            <button type="button" className="mini" onClick={() => selectTab("register")}>Back to admin</button>
-            <button type="button" className="mini" onClick={onSignOut}>Sign out</button>
-          </div>
-          <div className="choice" style={{ marginBottom: 18 }}>
-            <button type="button" className="chip" onClick={() => selectTab("register")}>Register admin</button>
-            <button type="button" className={`chip${activeTab === "customers" ? " is-on" : ""}`} aria-current={activeTab === "customers" ? "page" : undefined} onClick={() => selectTab("customers")}>Customers</button>
-            <button type="button" className={`chip${activeTab === "reports" ? " is-on" : ""}`} aria-current={activeTab === "reports" ? "page" : undefined} onClick={() => selectTab("reports")}>Reports</button>
-            <button type="button" className="chip" onClick={() => selectTab("settings")}>Settings</button>
-          </div>
+          <AdminTopbar onSignOut={onSignOut} onHome={() => selectTab("register")} />
+          <AdminNavigation activeTab={activeTab} onSelect={selectTab} />
           {activeTab === "customers" ? <CustomerLedger /> : <ReportsDashboard />}
         </main>
       ) : (
       <main className="card">
+        <AdminTopbar onSignOut={onSignOut} onHome={() => selectTab("register")} />
+        <AdminNavigation activeTab={activeTab} onSelect={selectTab} />
         <header className="head">
           <div className="head-text">
             <p className="eyebrow">
@@ -1474,20 +1505,8 @@ function Panel({ onSignOut }) {
               </p>
             )}
 
-            <p className="hint save-note">
-              <button type="button" className="mini" onClick={onSignOut}>
-                Sign out
-              </button>
-            </p>
           </div>
         </header>
-
-        <div className="choice" style={{ marginBottom: 18 }}>
-          <button type="button" className={`chip${activeTab === "register" ? " is-on" : ""}`} aria-current={activeTab === "register" ? "page" : undefined} onClick={() => selectTab("register")}>Register admin</button>
-          <button type="button" className="chip" onClick={() => selectTab("customers")}>Customers</button>
-          <button type="button" className="chip" onClick={() => selectTab("reports")}>Reports</button>
-          <button type="button" className={`chip${activeTab === "settings" ? " is-on" : ""}`} aria-current={activeTab === "settings" ? "page" : undefined} onClick={() => selectTab("settings")}>Settings</button>
-        </div>
 
         <div className={activeTab === "settings" ? "grid settings-grid" : "grid"}>
           <div className="column">

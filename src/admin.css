@@ -11,6 +11,96 @@
   max-width: 1120px;
 }
 
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -6px 0 18px;
+  padding: 0 0 15px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.admin-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-brand-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px;
+  background: #eaf2f6;
+  color: #246a8e;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.admin-brand > span:last-child { display: grid; gap: 2px; }
+.admin-brand strong { font-size: 14px; }
+.admin-brand small { color: var(--ink-mid); font-size: 11px; }
+
+.admin-signout {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink-mid);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.admin-signout:hover { border-color: var(--rule-strong); color: var(--ink); }
+
+.admin-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 22px;
+  padding: 5px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: #f6f8fa;
+}
+
+.admin-nav-button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-mid);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.admin-nav-button:hover { color: var(--ink); background: #fff; }
+.admin-nav-button.is-active {
+  border-color: var(--rule);
+  background: #fff;
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(16, 18, 21, .06);
+}
+.admin-nav-button:focus-visible,.admin-brand:focus-visible,.admin-signout:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* The month on the left, and opposite it the one button that commits every
    setting on the page. Save used to sit halfway down the left column, where a
    long column of settings pushed it below the fold; up here it is level with the
@@ -64,17 +154,24 @@
   grid-template-columns: minmax(0, 1fr) !important;
 }
 .settings-grid > .column {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  align-items: start;
+  display: block;
+  columns: 2;
+  column-gap: 16px;
 }
 .settings-grid > .column > .section {
+  display: inline-block;
+  vertical-align: top;
+  width: 100%;
   margin: 0;
+  margin-bottom: 16px;
   min-width: 0;
+  break-inside: avoid;
 }
 @media (max-width: 760px) {
-  .settings-grid > .column { grid-template-columns: minmax(0, 1fr); }
+  .admin-topbar { margin-bottom: 14px; }
+  .admin-nav { gap: 3px; margin-bottom: 18px; padding: 4px; }
+  .admin-nav-button { min-height: 39px; padding: 0 7px; font-size: 12px; }
+  .settings-grid > .column { columns: 1; }
 }
 
 .column {

@@ -37,6 +37,7 @@ function getCustomerMonthlyCategories(customers, year) {
 
 export default function ReportsDashboard() {
   const [year, setYear] = useState(currentYear);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(new Date().getMonth());
   const [reports, setReports] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +107,7 @@ export default function ReportsDashboard() {
   }, [reports, customers, year]);
 
   const rows = monthly.slice(0, 12);
+  const selectedMonth = rows[selectedMonthIndex] || rows[0];
   const agentTotals = rows.reduce((sum, row) => sum + row.agent, 0);
   const customerTotals = rows.reduce((sum, row) => sum + row.customer, 0);
   const combinedTotal = agentTotals + customerTotals;
@@ -135,16 +137,23 @@ export default function ReportsDashboard() {
               {[...new Set([year, ...years])].sort((a, b) => b - a).map((one) => <option key={one}>{one}</option>)}
             </select>
           </label>
+          <label>
+            <span>Month totals</span>
+            <select value={selectedMonthIndex} onChange={(event) => setSelectedMonthIndex(Number(event.target.value))}>
+              {MONTHS.map((name, index) => <option key={name} value={index}>{name}</option>)}
+            </select>
+          </label>
           <button type="button" onClick={load} disabled={loading}>{loading ? "Updating…" : "Refresh"}</button>
         </div>
       </header>
 
       {error && <div className="reports-error" role="alert">{error} <button type="button" onClick={load}>Try again</button></div>}
 
-      <section className="reports-summary" aria-label="Year summary">
-        <article><span>Agent submissions</span><strong>₹{money(agentTotals)}</strong><small>{rows.reduce((sum, row) => sum + row.reports, 0)} reports in {year}</small></article>
-        <article className="customer-total"><span>Customer collections</span><strong>₹{money(customerTotals)}</strong><small>Recorded payments in {year}</small></article>
-        <article className="combined-total"><span>Combined total</span><strong>₹{money(combinedTotal)}</strong><small>Agents + customers</small></article>
+      <section className="reports-month-totals" aria-label={`${selectedMonth.name} ${year} totals`}>
+        <h2>{selectedMonth.name} {year} totals</h2>
+        <p><strong>New RD</strong><span>Agents ₹{money(selectedMonth.newRd)} + customers ₹{money(selectedMonth.customerNewRd)} = <b>₹{money(selectedMonth.newRd + selectedMonth.customerNewRd)}</b></span></p>
+        <p><strong>New FD</strong><span>Agents ₹{money(selectedMonth.newFd)} + customers ₹{money(selectedMonth.customerNewFd)} = <b>₹{money(selectedMonth.newFd + selectedMonth.customerNewFd)}</b></span></p>
+        <p><strong>Renewals</strong><span>Agents ₹{money(selectedMonth.renewal)} + customers ₹{money(selectedMonth.customerRenewal)} = <b>₹{money(selectedMonth.renewal + selectedMonth.customerRenewal)}</b></span></p>
       </section>
 
       <section className="reports-panel">
@@ -154,9 +163,9 @@ export default function ReportsDashboard() {
         </div>
         {loading && !updatedAt ? <p className="reports-message">Loading report history…</p> : (
           <div className="reports-chart-scroll">
-            <div className="reports-chart" role="img" aria-label={rows.map((row) => `${row.name}: agent renewal ₹${money(row.renewal)}, agent new RD ₹${money(row.newRd)}, agent new FD ₹${money(row.newFd)}, customer renewal ₹${money(row.customerRenewal)}, customer new RD ₹${money(row.customerNewRd)}, customer new FD ₹${money(row.customerNewFd)}`).join("; ")}>
+            <div className="reports-chart" role="group" aria-label={rows.map((row) => `${row.name}: agent renewal ₹${money(row.renewal)}, agent new RD ₹${money(row.newRd)}, agent new FD ₹${money(row.newFd)}, customer renewal ₹${money(row.customerRenewal)}, customer new RD ₹${money(row.customerNewRd)}, customer new FD ₹${money(row.customerNewFd)}`).join("; ")}>
               {rows.map((row) => (
-                <div className="reports-chart-month" key={row.name}>
+                <button type="button" className={`reports-chart-month${selectedMonthIndex === MONTHS.indexOf(row.name) ? " is-selected" : ""}`} key={row.name} aria-label={`Show ${row.name} totals`} aria-pressed={selectedMonthIndex === MONTHS.indexOf(row.name)} onClick={() => setSelectedMonthIndex(MONTHS.indexOf(row.name))}>
                   <div className="reports-bars">
                     {series.map((item) => <div key={item.key} className={`reports-bar ${item.className}`} style={{ height: `${Math.max(row[item.key] ? 3 : 0, row[item.key] / maxValue * chartHeight)}px` }} title={`${item.label}: ₹${money(row[item.key])}`} />)}
                   </div>
@@ -166,7 +175,7 @@ export default function ReportsDashboard() {
                     <em>Total <b>₹{money(row.combined)}</b></em>
                   </div>
                   <span>{row.name}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
