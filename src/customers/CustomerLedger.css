@@ -61,6 +61,9 @@
 .customer-ledger-page tbody tr:hover td[style*="position: sticky"] { background-color: #f7faff !important; }
 .customer-ledger-page input:focus, .customer-ledger-page select:focus, .customer-ledger-page button:focus-visible { outline: 3px solid rgba(36,87,214,.28); outline-offset: 2px; }
 .customer-ledger-page button { transition: background-color .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease; }
+.customer-ledger-page .ledger-paid-progress { color:#17324f; font-weight:750; text-align:center; font-variant-numeric:tabular-nums; }
+.completed-customer-card { display:block; width:100%; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.completed-customer-card:hover { border-color:#9ab5d1 !important; box-shadow:0 5px 16px rgba(24,45,78,.09); transform:translateY(-1px); }
 
 @media (max-width: 1080px) {
   .customer-ledger-toolbar { align-items: flex-start !important; }

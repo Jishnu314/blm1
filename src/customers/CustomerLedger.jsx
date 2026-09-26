@@ -44,6 +44,13 @@ function loadCustomers() {
 function monthKey(year, monthIdx) {
   return `${year}-${MONTHS[monthIdx]}`;
 }
+function paymentProgress(customer) {
+  const termMonths = Math.max(1, Math.round(Number(customer.periodYears || 1) * 12));
+  if (customer.schemeType !== "RD") return { paid: 0, term: termMonths };
+  const markedInstallments = Object.values(customer.paid || {}).filter(Boolean).length;
+  const interval = Math.max(1, Number(customer.intervalMonths || 1));
+  return { paid: Math.min(termMonths, markedInstallments * interval), term: termMonths };
+}
 function startOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
@@ -436,6 +443,7 @@ export default function CustomerLedger() {
               <th style={{ ...styles.th, ...styles.stickyCol, textAlign: "left" }}>Name</th>
               <th style={{ ...styles.th, textAlign: "left" }}>Scheme</th>
               <th style={styles.th}>Amount</th>
+              <th style={styles.th}>Paid</th>
               {MONTHS.map((m, idx) => (
                 <th
                   key={m}
@@ -456,7 +464,7 @@ export default function CustomerLedger() {
           <tbody>
             {visibleCustomers.length === 0 && (
               <tr>
-                <td colSpan={17} style={styles.emptyRow}>
+                <td colSpan={18} style={styles.emptyRow}>
                   {ongoingCustomers.length === 0
                     ? "No customers yet. Add one to start tracking payments."
                     : searchTerm ? "No customers match your search. Try another name or scheme." : "No ongoing customers — everyone's completed or claimed."}
@@ -484,6 +492,9 @@ export default function CustomerLedger() {
                   )}
                 </td>
                 <td style={styles.td}>{fmt(c.amount)}{c.schemeType === "RD" ? "/mo" : ""}</td>
+                <td className="ledger-paid-progress" style={styles.td} title={c.schemeType === "RD" ? `${paymentProgress(c).paid} of ${paymentProgress(c).term} months paid` : "Fixed deposit"}>
+                  {c.schemeType === "RD" ? `${paymentProgress(c).paid}/${paymentProgress(c).term}` : "—"}
+                </td>
 
                 {c.schemeType === "FD" ? (
                   <td colSpan={12} style={styles.fdCellOuter}>
@@ -574,6 +585,7 @@ export default function CustomerLedger() {
                 <td style={{ ...styles.tf, ...styles.stickyCol, textAlign: "left" }}>Total</td>
                 <td style={styles.tf}></td>
                 <td style={styles.tf}></td>
+                <td style={styles.tf}></td>
                 {MONTHS.map((m, idx) => {
                   const s = newSignupsForMonthIdx(idx);
                   return (
@@ -602,13 +614,20 @@ export default function CustomerLedger() {
             {customers
               .filter((c) => c.claimed)
               .map((c) => (
-                <div key={c.id} style={styles.completedCard}>
+                <button
+                  key={c.id}
+                  type="button"
+                  className="completed-customer-card"
+                  style={styles.completedCard}
+                  onClick={() => setDetailCustomer(c)}
+                  aria-label={`View details for ${c.name}`}
+                >
                   <div style={styles.completedName}>{c.name}</div>
                   <div style={styles.completedAmount}>{fmt(c.amount)}</div>
                   <div style={styles.completedDate}>
                     {c.schemeType === "RD" ? "Completed on" : "Claimed on"} {fmtDate(c.claimedDate)}
                   </div>
-                </div>
+                </button>
               ))}
           </div>
         </div>
@@ -756,6 +775,12 @@ export default function CustomerLedger() {
               <span style={styles.detailLabel}>{detailCustomer.schemeType === "RD" ? "Installment" : "Deposit"}</span>
               <span style={styles.detailValue}>{fmt(detailCustomer.amount)}</span>
             </div>
+            {detailCustomer.schemeType === "RD" && (
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Months paid</span>
+                <span style={styles.detailValue}>{paymentProgress(detailCustomer).paid}/{paymentProgress(detailCustomer).term}</span>
+              </div>
+            )}
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Period</span>
               <span style={styles.detailValue}>{periodLabel(detailCustomer.periodYears)}</span>

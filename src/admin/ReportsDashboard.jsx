@@ -14,20 +14,22 @@ function reportMonthIndex(month) {
   return match ? { year: Number(match[1]), month: Number(match[2]) - 1 } : null;
 }
 
-function getCustomerMonthTotals(customers, year) {
-  const totals = Array(12).fill(0);
+function getCustomerMonthlyCategories(customers, year) {
+  const totals = { renewal: Array(12).fill(0), newRd: Array(12).fill(0), newFd: Array(12).fill(0) };
   for (const customer of customers) {
+    const joined = new Date(customer.joinedDate);
     if (customer.schemeType === "FD") {
-      const joined = new Date(customer.joinedDate);
       if (!Number.isNaN(joined.getTime()) && joined.getFullYear() === year)
-        totals[joined.getMonth()] += Number(customer.amount || 0);
+        totals.newFd[joined.getMonth()] += Number(customer.amount || 0);
       continue;
     }
     for (const [key, monthPaid] of Object.entries(customer.paid || {})) {
       if (!monthPaid) continue;
       const match = /^(\d{4})-([a-z]{3})$/i.exec(key);
       const month = match ? MONTHS.findIndex((one) => one.toLowerCase() === match[2].toLowerCase()) : -1;
-      if (match && Number(match[1]) === year && month >= 0) totals[month] += Number(customer.amount || 0);
+      if (!match || Number(match[1]) !== year || month < 0) continue;
+      const isJoinedMonth = !Number.isNaN(joined.getTime()) && joined.getFullYear() === year && joined.getMonth() === month;
+      totals[isJoinedMonth ? "newRd" : "renewal"][month] += Number(customer.amount || 0);
     }
   }
   return totals;
@@ -80,33 +82,43 @@ export default function ReportsDashboard() {
 
   const monthly = useMemo(() => {
     const agent = Array(12).fill(0);
+    const renewal = Array(12).fill(0);
+    const newRd = Array(12).fill(0);
+    const newFd = Array(12).fill(0);
     const count = Array(12).fill(0);
-    const agents = new Map();
     for (const report of reports) {
       const parsed = reportMonthIndex(report.month);
       if (!parsed || parsed.year !== year) continue;
       const total = reportTotal(report);
       agent[parsed.month] += total;
+      renewal[parsed.month] += Number(report.renewal || 0);
+      newRd[parsed.month] += (report.rd || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      newFd[parsed.month] += (report.fd || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
       count[parsed.month] += 1;
-      agents.set(report.name, (agents.get(report.name) || 0) + total);
     }
-    const customer = getCustomerMonthTotals(customers, year);
+    const customer = getCustomerMonthlyCategories(customers, year);
     return MONTHS.map((name, index) => ({
-      name, agent: agent[index], customer: customer[index],
-      combined: agent[index] + customer[index], reports: count[index],
-    })).concat({ agents });
+      name, agent: agent[index], renewal: renewal[index], newRd: newRd[index], newFd: newFd[index],
+      customerRenewal: customer.renewal[index], customerNewRd: customer.newRd[index], customerNewFd: customer.newFd[index],
+      customer: customer.renewal[index] + customer.newRd[index] + customer.newFd[index],
+      combined: agent[index] + customer.renewal[index] + customer.newRd[index] + customer.newFd[index], reports: count[index],
+    }));
   }, [reports, customers, year]);
 
   const rows = monthly.slice(0, 12);
   const agentTotals = rows.reduce((sum, row) => sum + row.agent, 0);
   const customerTotals = rows.reduce((sum, row) => sum + row.customer, 0);
   const combinedTotal = agentTotals + customerTotals;
-  const topAgents = [...(monthly[12]?.agents || new Map())]
-    .map(([name, amount]) => ({ name, amount }))
-    .sort((a, b) => b.amount - a.amount);
-
-  const maxValue = Math.max(1, ...rows.flatMap((row) => [row.agent, row.customer]));
+  const maxValue = Math.max(1, ...rows.flatMap((row) => [row.renewal, row.newRd, row.newFd, row.customerRenewal, row.customerNewRd, row.customerNewFd]));
   const chartHeight = 190;
+  const series = [
+    { key: "renewal", label: "Agent renewal", className: "renewal-bar" },
+    { key: "newRd", label: "Agent new RD", className: "rd-bar" },
+    { key: "newFd", label: "Agent new FD", className: "fd-bar" },
+    { key: "customerRenewal", label: "Customer renewal", className: "customer-renewal-bar" },
+    { key: "customerNewRd", label: "Customer new RD", className: "customer-rd-bar" },
+    { key: "customerNewFd", label: "Customer new FD", className: "customer-fd-bar" },
+  ];
 
   return (
     <div className="reports-dashboard">
@@ -137,17 +149,21 @@ export default function ReportsDashboard() {
 
       <section className="reports-panel">
         <div className="reports-panel-heading">
-          <div><h2>Monthly collection</h2><p>Compare agent reports with customer payment history.</p></div>
-          <div className="reports-legend"><span><i className="agent-key" />Agents</span><span><i className="customer-key" />Customers</span></div>
+          <div><h2>Monthly collection</h2><p>Compare agent and customer renewals, new RD, and new FD by month.</p></div>
+          <div className="reports-legend">{series.map((item) => <span key={item.key}><i className={item.className} />{item.label}</span>)}</div>
         </div>
         {loading && !updatedAt ? <p className="reports-message">Loading report history…</p> : (
           <div className="reports-chart-scroll">
-            <div className="reports-chart" role="img" aria-label={rows.map((row) => `${row.name}: agents ₹${money(row.agent)}, customers ₹${money(row.customer)}`).join("; ")}>
+            <div className="reports-chart" role="img" aria-label={rows.map((row) => `${row.name}: agent renewal ₹${money(row.renewal)}, agent new RD ₹${money(row.newRd)}, agent new FD ₹${money(row.newFd)}, customer renewal ₹${money(row.customerRenewal)}, customer new RD ₹${money(row.customerNewRd)}, customer new FD ₹${money(row.customerNewFd)}`).join("; ")}>
               {rows.map((row) => (
                 <div className="reports-chart-month" key={row.name}>
                   <div className="reports-bars">
-                    <div className="reports-bar agents-bar" style={{ height: `${Math.max(row.agent ? 3 : 0, row.agent / maxValue * chartHeight)}px` }} title={`Agents: ₹${money(row.agent)}`} />
-                    <div className="reports-bar customers-bar" style={{ height: `${Math.max(row.customer ? 3 : 0, row.customer / maxValue * chartHeight)}px` }} title={`Customers: ₹${money(row.customer)}`} />
+                    {series.map((item) => <div key={item.key} className={`reports-bar ${item.className}`} style={{ height: `${Math.max(row[item.key] ? 3 : 0, row[item.key] / maxValue * chartHeight)}px` }} title={`${item.label}: ₹${money(row[item.key])}`} />)}
+                  </div>
+                  <div className="reports-chart-tooltip" aria-hidden="true">
+                    <strong>{row.name} {year}</strong>
+                    {series.map((item) => <span key={item.key}><i className={item.className} />{item.label}<b>{row[item.key] ? `₹${money(row[item.key])}` : "—"}</b></span>)}
+                    <em>Total <b>₹{money(row.combined)}</b></em>
                   </div>
                   <span>{row.name}</span>
                 </div>
@@ -162,26 +178,18 @@ export default function ReportsDashboard() {
         <div className="reports-panel-heading"><div><h2>Monthly history</h2><p>Combined figures are the sum of both sources.</p></div></div>
         <div className="reports-table-wrap">
           <table>
-            <thead><tr><th>Month</th><th>Agent reports</th><th>Agents</th><th>Customers</th><th>Combined</th></tr></thead>
+            <thead><tr><th>Month</th><th>Agent reports</th><th>Agent renewal</th><th>Agent new RD</th><th>Agent new FD</th><th>Agents total</th><th>Customer renewal</th><th>Customer new RD</th><th>Customer new FD</th><th>Customers total</th><th>Combined</th></tr></thead>
             <tbody>{rows.map((row) => (
               <tr key={row.name}>
                 <th scope="row">{row.name} {year}</th>
-                <td>{row.reports}</td><td>₹{money(row.agent)}</td><td>₹{money(row.customer)}</td><td className="combined-cell">₹{money(row.combined)}</td>
+                <td>{row.reports}</td><td>₹{money(row.renewal)}</td><td>₹{money(row.newRd)}</td><td>₹{money(row.newFd)}</td><td>₹{money(row.agent)}</td><td>₹{money(row.customerRenewal)}</td><td>₹{money(row.customerNewRd)}</td><td>₹{money(row.customerNewFd)}</td><td>₹{money(row.customer)}</td><td className="combined-cell">₹{money(row.combined)}</td>
               </tr>
             ))}</tbody>
-            <tfoot><tr><th scope="row">Year total</th><td>{rows.reduce((sum, row) => sum + row.reports, 0)}</td><td>₹{money(agentTotals)}</td><td>₹{money(customerTotals)}</td><td>₹{money(combinedTotal)}</td></tr></tfoot>
+            <tfoot><tr><th scope="row">Year total</th><td>{rows.reduce((sum, row) => sum + row.reports, 0)}</td><td>₹{money(rows.reduce((sum, row) => sum + row.renewal, 0))}</td><td>₹{money(rows.reduce((sum, row) => sum + row.newRd, 0))}</td><td>₹{money(rows.reduce((sum, row) => sum + row.newFd, 0))}</td><td>₹{money(agentTotals)}</td><td>₹{money(rows.reduce((sum, row) => sum + row.customerRenewal, 0))}</td><td>₹{money(rows.reduce((sum, row) => sum + row.customerNewRd, 0))}</td><td>₹{money(rows.reduce((sum, row) => sum + row.customerNewFd, 0))}</td><td>₹{money(customerTotals)}</td><td>₹{money(combinedTotal)}</td></tr></tfoot>
           </table>
         </div>
       </section>
 
-      <section className="reports-panel">
-        <div className="reports-panel-heading"><div><h2>Agent totals</h2><p>Submitted report totals for {year}.</p></div></div>
-        {topAgents.length === 0 ? <p className="reports-message">No agent reports for this year yet.</p> : (
-          <ol className="agent-totals">{topAgents.map((agent, index) => (
-            <li key={agent.name}><span className="agent-rank">{index + 1}</span><span className="agent-name">{agent.name}</span><strong>₹{money(agent.amount)}</strong></li>
-          ))}</ol>
-        )}
-      </section>
     </div>
   );
 }

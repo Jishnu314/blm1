@@ -180,23 +180,31 @@ function saveCustomers_(raw) {
   try { customers = JSON.parse(String(raw || "[]")); } catch (badJson) { throw new Error("Customer data was not valid JSON."); }
   if (Object.prototype.toString.call(customers) !== "[object Array]" || customers.length > 3000)
     throw new Error("Customer list was too large or had an invalid format.");
-  var headings = ["Id", "Name", "Scheme", "Type", "Payment mode", "Interval months", "Amount", "Term years", "Joined", "Expires", "Payments json", "Edits json", "Completed / claimed", "Claimed date"];
+  var headings = ["Id", "Name", "Scheme", "Type", "Payment mode", "Interval months", "Amount", "Term years", "Joined", "Expires", "Payments json", "Edits json", "Completed / claimed", "Claimed date", "Paid months"];
   var sheet = tab_("Customers", headings);
+  // Existing Customers tabs predate this summary column. Add its heading at the end
+  // so the full Payments json history remains available for backup and restore.
+  sheet.getRange(1, headings.length).setValue("Paid months").setFontWeight("bold");
   if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.max(sheet.getLastColumn(), headings.length)).clearContent();
   if (customers.length === 0) return { ok: true, count: 0 };
   var rows = customers.map(function (c) {
+    var termMonths = Math.max(1, Math.round(Number(c.periodYears || 1) * 12));
+    var paidCount = Object.keys(c.paid || {}).filter(function (key) { return Boolean(c.paid[key]); }).length;
+    var paidMonths = Math.min(termMonths, paidCount * Math.max(1, Number(c.intervalMonths || 1)));
     return [String(c.id || ""), String(c.name || ""), String(c.schemeName || ""), String(c.schemeType || ""),
       String(c.paymentMode || ""), Number(c.intervalMonths || 0), Number(c.amount || 0), Number(c.periodYears || 0),
       String(c.joinedDate || ""), String(c.expiryDate || ""), JSON.stringify(c.paid || {}), JSON.stringify(c.edited || {}),
-      c.claimed ? "yes" : "no", c.claimedDate ? String(c.claimedDate) : ""];
+      c.claimed ? "yes" : "no", c.claimedDate ? String(c.claimedDate) : "",
+      c.schemeType === "RD" ? paidMonths + "/" + termMonths : "—"];
   });
   sheet.getRange(2, 1, rows.length, headings.length).setValues(rows);
   sheet.setFrozenRows(1);
   sheet.getRange(1, 1, 1, headings.length).setFontWeight("bold");
-  sheet.setColumnWidth(2, 190);
-  sheet.setColumnWidth(3, 150);
-  sheet.setColumnWidths(9, 2, 150);
-  sheet.setColumnWidths(11, 2, 220);
+    sheet.setColumnWidth(2, 190);
+    sheet.setColumnWidth(3, 150);
+    sheet.setColumnWidths(9, 2, 150);
+    sheet.setColumnWidths(11, 2, 220);
+    sheet.setColumnWidth(15, 110);
   return { ok: true, count: rows.length };
 }
 
