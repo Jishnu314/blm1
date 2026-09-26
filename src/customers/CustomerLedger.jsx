@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { apiGet, apiSend } from "../lib/api.js";
 import "./CustomerLedger.css";
 
@@ -67,9 +67,9 @@ function toIndianGrouped(raw) {
 
 export default function CustomerLedger() {
   const [customers, setCustomers] = useState(loadCustomers);
+  const [savedCustomers, setSavedCustomers] = useState(loadCustomers);
   const [syncReady, setSyncReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState("loading");
-  const saveQueue = useRef(Promise.resolve());
   const [viewYear, setViewYear] = useState(REAL_CURRENT_YEAR);
   const [currentMonth, setCurrentMonth] = useState(REAL_CURRENT_MONTH); // "marking as" month, for fixing mistakes
   const [searchTerm, setSearchTerm] = useState("");
@@ -104,7 +104,9 @@ export default function CustomerLedger() {
       // On first sign-in, or after an offline edit, bring this browser's pending
       // ledger to Supabase. Otherwise use the shared cloud list.
       const chosen = data?.configured && !pendingLocal ? remote : localCustomers;
-      setCustomers(normalizeCustomers(chosen));
+      const normalized = normalizeCustomers(chosen);
+      setCustomers(normalized);
+      setSavedCustomers(normalized);
       setSyncStatus("saved");
       setSyncReady(true);
     }).catch(() => {
@@ -115,28 +117,52 @@ export default function CustomerLedger() {
     return () => { active = false; };
   }, []);
 
+  const hasUnsavedChanges = JSON.stringify(customers) !== JSON.stringify(savedCustomers);
+
   useEffect(() => {
+    if (!hasUnsavedChanges) return undefined;
+    const warnBeforeLeaving = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [hasUnsavedChanges]);
+
+  async function saveChanges() {
+    if (!hasUnsavedChanges || syncStatus === "saving") return;
+    const snapshot = normalizeCustomers(JSON.parse(JSON.stringify(customers)));
+    setSyncStatus("saving");
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+      await apiSend("PUT", "/api/admin/customers", { customers: JSON.parse(JSON.stringify(snapshot)) });
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        localStorage.removeItem(PENDING_KEY);
+      } catch { /* the server copy is saved */ }
+      setSavedCustomers(snapshot);
+      setSyncStatus("saved");
     } catch {
-      // Keep working in memory if storage is full or blocked.
+      // A deliberate Save still works offline: keep this confirmed copy locally
+      // and offer it to the server next time the ledger is opened.
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        localStorage.setItem(PENDING_KEY, "1");
+      } catch { /* keep the confirmed copy in memory */ }
+      setSavedCustomers(snapshot);
+      setSyncStatus("local");
     }
-    if (!syncReady) return undefined;
-    const snapshot = JSON.stringify(customers);
-    const timer = setTimeout(() => {
-      setSyncStatus("saving");
-      saveQueue.current = saveQueue.current.catch(() => {}).then(() =>
-        apiSend("PUT", "/api/admin/customers", { customers: JSON.parse(snapshot) })
-      ).then(() => {
-        try { localStorage.removeItem(PENDING_KEY); } catch { /* cloud copy is saved */ }
-        setSyncStatus("saved");
-      }).catch(() => {
-        try { localStorage.setItem(PENDING_KEY, "1"); } catch { /* keep the in-memory copy */ }
-        setSyncStatus("local");
-      });
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [customers, syncReady]);
+  }
+
+  function discardChanges() {
+    if (!hasUnsavedChanges) return;
+    if (!window.confirm("Discard all customer changes that have not been saved?")) return;
+    setCustomers(normalizeCustomers(JSON.parse(JSON.stringify(savedCustomers))));
+    setSyncStatus("saved");
+    setEditingCell(null);
+    setShowModal(false);
+    setDetailCustomer(null);
+    setConfirmDeleteId(null);
+  }
 
   if (!syncReady) {
     return <div style={styles.page} role="status">Loading shared customer data…</div>;
@@ -367,13 +393,14 @@ export default function CustomerLedger() {
           <div className="customer-ledger-eyebrow">CUSTOMER MANAGEMENT</div>
           <h1 style={styles.title}>Customer ledger</h1>
           <p style={styles.subtitle}>
-            Track customer schemes and record payments month by month.
+            Track customer schemes. Changes take effect when you save them.
           </p>
           <p className={`ledger-save-status ledger-save-status--${syncStatus}`} role="status">
             <span className="ledger-save-dot" />
             {syncStatus === "loading" ? "Loading shared customer data…" :
               syncStatus === "saving" ? "Saving changes…" :
-                syncStatus === "saved" ? "All changes saved" : "Offline — saved on this device for now"}
+                hasUnsavedChanges ? "Unsaved changes — save to apply" :
+                  syncStatus === "saved" ? "All changes saved" : "Offline — saved on this device for now"}
           </p>
         </div>
         <div className="ledger-toolbar-controls">
@@ -423,7 +450,15 @@ export default function CustomerLedger() {
           })}
           </div>
         </div>
-        <button className="ledger-add-button" style={styles.addBtn} onClick={() => openModal()}><span aria-hidden="true">＋</span> Add customer</button>
+        <div className="ledger-edit-actions">
+          <button type="button" className="ledger-save-button" onClick={saveChanges} disabled={!hasUnsavedChanges || syncStatus === "saving"}>
+            {syncStatus === "saving" ? "Saving…" : "Save changes"}
+          </button>
+          <button type="button" className="ledger-discard-button" onClick={discardChanges} disabled={!hasUnsavedChanges || syncStatus === "saving"}>
+            Discard
+          </button>
+          <button type="button" className="ledger-add-button" style={styles.addBtn} onClick={() => openModal()}><span aria-hidden="true">＋</span> Add customer</button>
+        </div>
       </div>
 
       <section className="ledger-stats" aria-label="Customer summary">
@@ -433,7 +468,7 @@ export default function CustomerLedger() {
       </section>
 
       <div className="ledger-section-heading">
-        <div><h2 style={styles.completedTitle}>Ongoing schemes</h2><p>Click a customer name for details. Select a due month to record payment received in {currentMonth}.</p></div>
+        <div><h2 style={styles.completedTitle}>Ongoing schemes</h2><p>Click a customer name for details. Select a due month, then save to record payment received in {currentMonth}.</p></div>
         <label className="ledger-search"><span className="sr-only">Search ongoing customers</span><span aria-hidden="true">⌕</span><input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search name or scheme" /></label>
       </div>
       <div style={styles.tableWrap}>

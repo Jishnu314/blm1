@@ -28,6 +28,11 @@
 .ledger-save-status--saving, .ledger-save-status--loading { background: #eef3ff; color: #3156a4 !important; }
 .ledger-save-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .ledger-toolbar-controls { display: flex; gap: 10px; align-items: center; }
+.ledger-edit-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.ledger-save-button, .ledger-discard-button { min-height: 42px; padding: 0 15px; border: 1px solid var(--ledger-border); border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.ledger-save-button { border-color: var(--ledger-blue); background: var(--ledger-blue); color: #fff; }
+.ledger-discard-button { background: #fff; color: var(--ledger-muted); }
+.ledger-save-button:disabled, .ledger-discard-button:disabled { opacity: .45; cursor: default; }
 .ledger-control { padding: 9px 12px; background: #f8fafd; border: 1px solid var(--ledger-border); border-radius: 11px; min-width: 130px; }
 .customer-ledger-toolbar .ledger-control span { color: var(--ledger-muted); font-size: 11px !important; font-weight: 650; }
 .customer-ledger-toolbar .ledger-control select { border: 0 !important; background: transparent !important; padding: 5px 24px 0 0 !important; font: inherit; font-size: 14px; font-weight: 700; color: var(--ledger-ink); outline-offset: 2px; }
@@ -74,6 +79,8 @@
   .customer-ledger-page { padding: 14px 12px 32px !important; }
   .customer-ledger-toolbar { padding: 18px !important; border-radius: 15px; }
   .ledger-toolbar-controls { width: 100%; }
+  .ledger-edit-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .ledger-edit-actions .ledger-add-button { grid-column: 1 / -1; }
   .ledger-control { flex: 1; min-width: 0; }
   .ledger-month-summary { width: 100%; }
   .ledger-month-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
