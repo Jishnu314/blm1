@@ -343,7 +343,6 @@ export default function CustomerLedger() {
       ).length;
       return sum + count * c.amount;
     }, 0);
-  const yearCollected = MONTHS.reduce((sum, month) => sum + monthCollectedAmount(month), 0);
 
   // New signups (by join date, within the viewed year), split by scheme type
   const newSignupsForMonthIdx = (idx) => {
@@ -464,7 +463,7 @@ export default function CustomerLedger() {
       <section className="ledger-stats" aria-label="Customer summary">
         <article className="ledger-stat-card"><span>Active schemes</span><strong>{ongoingCustomers.length}</strong><small>customers being tracked</small></article>
         <article className="ledger-stat-card ledger-stat-card--due"><span>Still due this month</span><strong>₹{fmt(remainingForMonthIdx(REAL_CURRENT_YEAR, REAL_CURRENT_MONTH_IDX))}</strong><small>{REAL_CURRENT_MONTH} {REAL_CURRENT_YEAR}</small></article>
-        <article className="ledger-stat-card ledger-stat-card--collected"><span>Collected in {viewYear}</span><strong>₹{fmt(yearCollected)}</strong><small>across all customer schemes</small></article>
+        <article className="ledger-stat-card ledger-stat-card--collected"><span>Total collected in {currentMonth}</span><strong>₹{fmt(monthCollectedAmount(currentMonth))}</strong><small>{currentMonth} {viewYear} · all customer schemes</small></article>
       </section>
 
       <div className="ledger-section-heading">
