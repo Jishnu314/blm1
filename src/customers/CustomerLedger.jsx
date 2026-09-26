@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { apiGet, apiSend } from "../lib/api.js";
+import "./CustomerLedger.css";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const REAL_NOW = new Date();
@@ -64,6 +65,7 @@ export default function CustomerLedger() {
   const saveQueue = useRef(Promise.resolve());
   const [viewYear, setViewYear] = useState(REAL_CURRENT_YEAR);
   const [currentMonth, setCurrentMonth] = useState(REAL_CURRENT_MONTH); // "marking as" month, for fixing mistakes
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [showModal, setShowModal] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -308,6 +310,7 @@ export default function CustomerLedger() {
       ).length;
       return sum + count * c.amount;
     }, 0);
+  const yearCollected = MONTHS.reduce((sum, month) => sum + monthCollectedAmount(month), 0);
 
   // New signups (by join date, within the viewed year), split by scheme type
   const newSignupsForMonthIdx = (idx) => {
@@ -345,39 +348,48 @@ export default function CustomerLedger() {
   const paymentModeLabel = (id) => PAYMENT_MODES.find((p) => p.id === id)?.label || "";
   const schemeNameOptions = [...new Set(customers.map((c) => c.schemeName))];
   const ongoingCustomers = customers.filter((c) => !c.claimed);
+  const visibleCustomers = ongoingCustomers.filter((c) =>
+    `${c.name} ${c.schemeName} ${c.schemeType}`.toLowerCase().includes(searchTerm.trim().toLowerCase())
+  );
 
   return (
-    <div style={styles.page}>
-      <div style={styles.toolbar}>
+    <div className="customer-ledger-page" style={styles.page}>
+      <div className="customer-ledger-shell">
+      <div className="customer-ledger-toolbar" style={styles.toolbar}>
         <div>
-          <h1 style={styles.title}>Customer Ledger</h1>
+          <div className="customer-ledger-eyebrow">CUSTOMER MANAGEMENT</div>
+          <h1 style={styles.title}>Customer ledger</h1>
           <p style={styles.subtitle}>
-            Click a due month to mark it paid — it stamps the current month ({currentMonth}), even
-            against an earlier due column, so advance payments show when they actually came in.
+            Track customer schemes and record payments month by month.
           </p>
-          <p style={styles.summaryLabel} role="status">
+          <p className={`ledger-save-status ledger-save-status--${syncStatus}`} role="status">
+            <span className="ledger-save-dot" />
             {syncStatus === "loading" ? "Loading shared customer data…" :
-              syncStatus === "saving" ? "Saving to Supabase…" :
-                syncStatus === "saved" ? "Saved to Supabase" : "Supabase is unavailable — saved on this device for now"}
+              syncStatus === "saving" ? "Saving changes…" :
+                syncStatus === "saved" ? "All changes saved" : "Offline — saved on this device for now"}
           </p>
         </div>
-        <div style={styles.monthPicker}>
-          <span style={styles.summaryLabel}>Viewing year</span>
-          <select style={styles.monthSelect} value={viewYear} onChange={(e) => setViewYear(Number(e.target.value))}>
+        <div className="ledger-toolbar-controls">
+        <label className="ledger-control" style={styles.monthPicker}>
+          <span style={styles.summaryLabel}>Payment year</span>
+          <select aria-label="Payment year" style={styles.monthSelect} value={viewYear} onChange={(e) => setViewYear(Number(e.target.value))}>
             {YEAR_OPTIONS.map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-        </div>
-        <div style={styles.monthPicker}>
-          <span style={styles.summaryLabel}>Marking as</span>
-          <select style={styles.monthSelect} value={currentMonth} onChange={(e) => setCurrentMonth(e.target.value)}>
+        </label>
+        <label className="ledger-control" style={styles.monthPicker}>
+          <span style={styles.summaryLabel}>Payment received in</span>
+          <select aria-label="Payment received in month" style={styles.monthSelect} value={currentMonth} onChange={(e) => setCurrentMonth(e.target.value)}>
             {MONTHS.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
+        </label>
         </div>
-        <div style={styles.miniCal}>
+        <div className="ledger-month-summary" aria-label={`Unpaid amounts by month for ${viewYear}`}>
+          <div className="ledger-month-summary-title">Still due in {viewYear}</div>
+          <div className="ledger-month-grid" style={styles.miniCal}>
           {MONTHS.map((m, idx) => {
             const isFuture =
               viewYear > REAL_CURRENT_YEAR ||
@@ -402,13 +414,23 @@ export default function CustomerLedger() {
               </div>
             );
           })}
+          </div>
         </div>
-        <button style={styles.addBtn} onClick={() => openModal()}>+ Add customer</button>
+        <button className="ledger-add-button" style={styles.addBtn} onClick={() => openModal()}><span aria-hidden="true">＋</span> Add customer</button>
       </div>
 
-      <h2 style={styles.completedTitle}>Ongoing</h2>
+      <section className="ledger-stats" aria-label="Customer summary">
+        <article className="ledger-stat-card"><span>Active schemes</span><strong>{ongoingCustomers.length}</strong><small>customers being tracked</small></article>
+        <article className="ledger-stat-card ledger-stat-card--due"><span>Still due this month</span><strong>₹{fmt(remainingForMonthIdx(REAL_CURRENT_YEAR, REAL_CURRENT_MONTH_IDX))}</strong><small>{REAL_CURRENT_MONTH} {REAL_CURRENT_YEAR}</small></article>
+        <article className="ledger-stat-card ledger-stat-card--collected"><span>Collected in {viewYear}</span><strong>₹{fmt(yearCollected)}</strong><small>across all customer schemes</small></article>
+      </section>
+
+      <div className="ledger-section-heading">
+        <div><h2 style={styles.completedTitle}>Ongoing schemes</h2><p>Click a customer name for details. Select a due month to record payment received in {currentMonth}.</p></div>
+        <label className="ledger-search"><span className="sr-only">Search ongoing customers</span><span aria-hidden="true">⌕</span><input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search name or scheme" /></label>
+      </div>
       <div style={styles.tableWrap}>
-        <table style={styles.table}>
+        <table className="ledger-table" style={styles.table}>
           <thead>
             <tr>
               <th style={{ ...styles.th, ...styles.stickyCol, textAlign: "left" }}>Name</th>
@@ -432,16 +454,16 @@ export default function CustomerLedger() {
             </tr>
           </thead>
           <tbody>
-            {ongoingCustomers.length === 0 && (
+            {visibleCustomers.length === 0 && (
               <tr>
                 <td colSpan={17} style={styles.emptyRow}>
-                  {customers.length === 0
+                  {ongoingCustomers.length === 0
                     ? "No customers yet. Add one to start tracking payments."
-                    : "No ongoing customers — everyone's completed or claimed."}
+                    : searchTerm ? "No customers match your search. Try another name or scheme." : "No ongoing customers — everyone's completed or claimed."}
                 </td>
               </tr>
             )}
-            {ongoingCustomers.map((c) => (
+            {visibleCustomers.map((c) => (
               <tr key={c.id}>
                 <td
                   style={{ ...styles.td, ...styles.stickyCol, ...styles.nameCell, textAlign: "left", fontWeight: 600 }}
@@ -833,6 +855,7 @@ export default function CustomerLedger() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

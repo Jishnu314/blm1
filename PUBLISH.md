@@ -17,8 +17,8 @@ This repository is `Jishnu314/blm1`. The site address will be
    controls, image bucket, and database functions.
 3. Open **Edge Functions → Secrets** and add `ADMIN_PASSWORD` with a private password
    of at least 10 characters. The function creates its admin password record on the
-   first sign-in. Optionally add `SHEET_WEBHOOK_URL` with the existing Apps Script
-   `/exec` URL to keep copying changes to the Google Sheet.
+   first sign-in. Connect the Google Sheet later from **Admin → Settings**; the link
+   is kept on the server and is not placed in the public website.
 
 The `register-images` bucket is public-read so agents can load announcement posters;
 it only accepts JPEG, PNG, and WebP files up to 2 MB. Database tables remain private.
@@ -85,24 +85,20 @@ that tab is open.
 
 ## 5. Bring over existing data
 
-The SQL setup makes Supabase the new main database; it does not automatically copy
-old Sheet rows into it. Import the Sheet's existing reports before agents start using
-the new form:
+To connect the Sheet and bring its existing report history into the app:
 
-1. Copy `server/.env.example` to `server/.env`.
-2. Put the Supabase **Session pooler** PostgreSQL connection string in `DATABASE_URL`
-   and the Apps Script `/exec` URL in `SHEET_WEBHOOK_URL`.
-3. In a terminal, open the `server` folder, run `npm install`, then
-   `npm run import-sheet`. It skips report IDs already present and can be run again
-   safely.
-4. Sign in to `/admin/` and confirm the old reports are present.
+1. Deploy Apps Script as a web app that executes as you and allows access to
+   **Anyone**. Run its setup once and approve Google's access prompt.
+2. Copy the deployed web app URL ending in `/exec`. The editor-only `/dev` URL and
+   the regular spreadsheet URL will not work.
+3. Sign in at `/admin/`, open **Settings → Google Sheet connection**, paste the
+   `/exec` URL, and choose **Save and connect**.
+4. Choose **Import existing reports**. Existing report IDs are skipped, so the
+   import can be repeated safely.
 
-Keep `server/.env` private; it must not be committed. This importer copies reports
-from the Sheet, not from a previous Neon database. Old popup images stored in the
-previous Postgres `bytea` table do not move automatically; upload them again from the
-admin page and select the new image in the popup setting. If the database already
-contains the old Express admin password hash, the first login resets it to the
-`ADMIN_PASSWORD` Edge Function secret you set above.
+After connection, new form reports, admin corrections and customer-ledger changes
+are copied to the Sheet. The private **Customers** tab is not returned by the public
+report-reading endpoint. Supabase remains the app's main database.
 
 ## GitHub Pages visibility and costs
 

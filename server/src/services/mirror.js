@@ -30,7 +30,13 @@ const GIVE_UP_AFTER_MS = 20_000;
 
 /** No URL, no copy, nothing queued, nothing owed. */
 export function mirrorEnabled() {
-  return config.sheetWebhookUrl !== "";
+  return Boolean(config.sheetWebhookUrl);
+}
+
+/** The admin may add the web-app link in the page; keep it in the private settings row. */
+export async function sheetWebhookUrl(runner = query) {
+  const held = await runner.query(`select value from settings where key = $1`, ["sheetWebhookUrl"]);
+  return String(held.rows[0]?.value || config.sheetWebhookUrl || "").trim();
 }
 
 /**
@@ -38,7 +44,7 @@ export function mirrorEnabled() {
  * so the queue row and the write it describes land together or not at all.
  */
 export async function enqueue(client, kind, ref = "", payload = "") {
-  if (!mirrorEnabled()) return;
+  if (!(await sheetWebhookUrl(client))) return;
   await client.query(`insert into mirror_queue (kind, ref, payload) values ($1, $2, $3)`, [
     kind,
     String(ref),
@@ -54,7 +60,6 @@ export async function enqueue(client, kind, ref = "", payload = "") {
  * refuses to exit.
  */
 export function kick() {
-  if (!mirrorEnabled()) return;
   const soon = setTimeout(() => {
     flush().catch((problem) => console.error("Sheet copy:", problem.message));
   }, 0);
@@ -73,7 +78,7 @@ let running = false;
  * failing would put the row back in the sheet on the retry.
  */
 export async function flush() {
-  if (!mirrorEnabled() || running) return 0;
+  if (running || !(await sheetWebhookUrl())) return 0;
   running = true;
   try {
     const { rows } = await query(
@@ -114,10 +119,6 @@ export async function flush() {
 
 /** Every minute, and once at boot for whatever the last run left behind. */
 export function startFlusher(everyMs = EVERY_MS) {
-  if (!mirrorEnabled()) {
-    console.log("SHEET_WEBHOOK_URL is not set, so nothing is copied to the Google Sheet.");
-    return () => {};
-  }
   const timer = setInterval(() => {
     flush().catch((problem) => console.error("Sheet copy:", problem.message));
   }, everyMs);
@@ -142,6 +143,10 @@ async function push(row) {
     return;
   }
   if (row.kind === "settings") {
+    if (row.ref === "customers") {
+      await post(new URLSearchParams({ action: "saveCustomers", customers: String(row.payload || "[]") }));
+      return;
+    }
     await post(settingsBody(row.payload));
     return;
   }
@@ -167,7 +172,9 @@ async function push(row) {
  * sign-in page, which means the deployment is not shared with "Anyone".
  */
 async function post(body) {
-  const res = await fetch(config.sheetWebhookUrl, {
+  const url = await sheetWebhookUrl();
+  if (!url) throw new Error("The Apps Script URL is not set.");
+  const res = await fetch(url, {
     method: "POST",
     body,
     redirect: "follow",

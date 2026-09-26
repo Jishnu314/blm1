@@ -182,17 +182,43 @@ async function readReport(id: string) {
   if (error) throw error;
   return data ? normalizeReport(data) : null;
 }
+const SHEET_URL_KEY = "sheetWebhookUrl";
+async function readSheetUrl() {
+  const { data, error } = await db.from("settings").select("value").eq("key", SHEET_URL_KEY).maybeSingle();
+  if (error) throw error;
+  return text(data?.value) || text(Deno.env.get("SHEET_WEBHOOK_URL"));
+}
+function validSheetUrl(value: unknown) {
+  let parsed: URL;
+  try { parsed = new URL(text(value)); } catch { throw fail(400, "invalid_input", "Paste the Apps Script web app link ending in /exec.", "url"); }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "script.google.com" || parsed.port || parsed.username || parsed.password ||
+    !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname) || parsed.search || parsed.hash)
+    throw fail(400, "invalid_input", "Use the deployed Apps Script web app URL ending in /exec. A /dev link or regular Sheet link will not connect.", "url");
+  return parsed.toString();
+}
+async function checkSheetUrl(url: string) {
+  let response: Response;
+  try {
+    const probe = new URL(url); probe.searchParams.set("action", "reports");
+    response = await fetch(probe, { redirect: "follow", signal: AbortSignal.timeout(12000) });
+  } catch {
+    throw fail(400, "sheet_unreachable", "Google did not answer. Confirm the web app is deployed for anyone and try again.");
+  }
+  if (!response.ok) throw fail(400, "sheet_unreachable", `Google answered ${response.status}. Check the Apps Script deployment and try again.`);
+  const result = await response.json().catch(() => null);
+  if (!result || !Array.isArray(result.reports))
+    throw fail(400, "sheet_format", "The link opened, but it did not return reports. Update the Apps Script Code.gs and deploy it as a web app.");
+  return result;
+}
 async function queueMirror(kind: string, ref = "", payload = "") {
-  if (!Deno.env.get("SHEET_WEBHOOK_URL")) return;
+  if (!await readSheetUrl()) return;
   const { error } = await db.from("mirror_queue").insert({ kind, ref: String(ref), payload });
   if (error) throw error;
   scheduleMirror();
 }
 function scheduleMirror() {
-  if (!Deno.env.get("SHEET_WEBHOOK_URL")) return;
-  // Supabase Edge Runtime keeps this work alive briefly after the response.
   // @ts-ignore EdgeRuntime is supplied by Supabase's Deno runtime.
-  EdgeRuntime.waitUntil(drainMirror().catch((e: unknown) => console.error("Sheet copy:", e)));
+  EdgeRuntime.waitUntil(readSheetUrl().then((url) => url ? drainMirror() : undefined).catch((e: unknown) => console.error("Sheet copy:", e)));
 }
 
 const sum = (rows: any[]) => rows.reduce((s, row) => s + Number(row.amount || 0), 0);
@@ -232,6 +258,8 @@ async function settingsSnapshot() {
 }
 async function mirrorBody(row: any) {
   if (row.kind === "delete") return new URLSearchParams({ action: "deleteReport", id: row.ref });
+  if (row.kind === "settings" && row.ref === "customers")
+    return new URLSearchParams({ action: "saveCustomers", customers: row.payload });
   if (row.kind === "settings") return settingsMirror(JSON.parse(row.payload));
   if (row.kind === "report") {
     const report = await readReport(row.ref); return report ? reportMirror(report) : null;
@@ -247,7 +275,7 @@ async function mirrorBody(row: any) {
   throw new Error("Unknown sheet copy item.");
 }
 async function drainMirror() {
-  const url = Deno.env.get("SHEET_WEBHOOK_URL"); if (!url) return;
+  const url = await readSheetUrl(); if (!url) return;
   const { data: rows, error } = await db.from("mirror_queue").select("*").lte("next_try_at", new Date().toISOString()).order("id").limit(20);
   if (error) throw error;
   for (const row of rows || []) {
@@ -401,6 +429,53 @@ async function handle(req: Request) {
     const { error: sessionsError } = await db.from("admin_sessions").delete().neq("token_hash", tokenHash); if (sessionsError) throw sessionsError;
     return json({ ok: true });
   }
+  if (route === "/admin/sheet" && method === "GET") {
+    await adminToken(req);
+    const webhookUrl = await readSheetUrl();
+    return json({ configured: Boolean(webhookUrl), url: webhookUrl });
+  }
+  if (route === "/admin/sheet" && method === "PUT") {
+    await adminToken(req);
+    const webhookUrl = validSheetUrl(body?.url);
+    await checkSheetUrl(webhookUrl);
+    const { error } = await db.from("settings").upsert({ key: SHEET_URL_KEY, value: webhookUrl, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    const [{ data: heldReports, error: reportsError }, { data: ledger, error: ledgerError }] = await Promise.all([
+      db.from("reports").select("id").is("deleted_at", null).limit(1000),
+      db.from("customer_ledger").select("customers").eq("id", 1).maybeSingle(),
+    ]);
+    if (reportsError || ledgerError) throw reportsError || ledgerError;
+    for (const row of heldReports || []) await queueMirror("report", row.id);
+    if (Array.isArray(ledger?.customers)) await queueMirror("settings", "customers", JSON.stringify(ledger.customers));
+    await queueMirror("settings", "", JSON.stringify(await settingsSnapshot()));
+    const { data: images, error: imagesError } = await db.from("stored_images").select("id");
+    if (imagesError) throw imagesError;
+    for (const image of images || []) await queueMirror("image", String(image.id));
+    return json({ configured: true, url: webhookUrl });
+  }
+  if (route === "/admin/sheet/import" && method === "POST") {
+    await adminToken(req);
+    const webhookUrl = await readSheetUrl();
+    if (!webhookUrl) throw fail(409, "sheet_not_configured", "Add and connect the Apps Script /exec link first.");
+    const sheet = await checkSheetUrl(webhookUrl);
+    if (sheet.reports.length > 20000) throw fail(413, "sheet_too_large", "This sheet has over 20,000 reports. Import it in smaller groups.");
+    let imported = 0; let skipped = 0;
+    for (const source of sheet.reports) {
+      try {
+        const report = validateReport(source, true);
+        const { data: created, error } = await db.rpc("api_create_report", { p: report });
+        if (error) throw error;
+        if (created) {
+          imported += 1;
+          await queueMirror("report", report.id);
+        } else skipped += 1;
+      } catch (problem) {
+        if (problem instanceof HttpError && problem.status === 400) { skipped += 1; continue; }
+        throw problem;
+      }
+    }
+    return json({ imported, skipped, total: sheet.reports.length });
+  }
   if (route === "/admin/customers" && method === "GET") {
     await adminToken(req);
     const { data, error } = await db.from("customer_ledger").select("customers").eq("id", 1).maybeSingle();
@@ -414,6 +489,7 @@ async function handle(req: Request) {
       throw fail(400, "invalid_input", "The customer list is too large or has an invalid format.", "customers");
     const { error } = await db.from("customer_ledger").upsert({ id: 1, customers, updated_at: new Date().toISOString() });
     if (error) throw error;
+    await queueMirror("settings", "customers", JSON.stringify(customers));
     return json({ ok: true });
   }
   if (route === "/admin/status" && method === "GET") {
@@ -425,7 +501,8 @@ async function handle(req: Request) {
       db.from("mirror_queue").select("last_error").neq("last_error", "").order("id", { ascending: false }).limit(1),
     ]);
     if (countError || firstError || queueError || lastError) throw countError || firstError || queueError || lastError;
-    return json({ sheet: { configured: Boolean(Deno.env.get("SHEET_WEBHOOK_URL")), queue: Deno.env.get("SHEET_WEBHOOK_URL") ? queued || 0 : 0, lastError: Deno.env.get("SHEET_WEBHOOK_URL") ? last?.[0]?.last_error || "" : "" }, reports: count || 0, since: first?.[0]?.submitted_at || "" });
+    const configured = Boolean(await readSheetUrl());
+    return json({ sheet: { configured, queue: configured ? queued || 0 : 0, lastError: configured ? last?.[0]?.last_error || "" : "" }, reports: count || 0, since: first?.[0]?.submitted_at || "" });
   }
 
   throw fail(404, "not_found", "There is no API route here.");

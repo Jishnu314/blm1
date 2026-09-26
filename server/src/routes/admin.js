@@ -12,7 +12,7 @@
 import express from "express";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
-import { loginInput, passwordChangeInput } from "../lib/validate.js";
+import { loginInput, newReport, passwordChangeInput } from "../lib/validate.js";
 import {
   checkPassword,
   clearSessionCookie,
@@ -24,8 +24,9 @@ import {
   setPassword,
   setSessionCookie,
 } from "../auth.js";
-import { lastError, mirrorEnabled, queueDepth } from "../services/mirror.js";
-import { reportsSummary } from "../services/reports.js";
+import { lastError, queueDepth, sheetWebhookUrl } from "../services/mirror.js";
+import { insertReport, reportsSummary } from "../services/reports.js";
+import { query } from "../db.js";
 
 export const admin = express.Router();
 
@@ -101,12 +102,68 @@ admin.post(
   })
 );
 
+const validAppsScriptUrl = (input) => {
+  let url;
+  try { url = new URL(String(input || "").trim()); } catch { throw new ApiError("invalid_input", 400, "Paste the Apps Script web app link ending in /exec.", "url"); }
+  if (url.protocol !== "https:" || url.hostname !== "script.google.com" || url.port || url.username || url.password ||
+    !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url.pathname) || url.search || url.hash)
+    throw new ApiError("invalid_input", 400, "Use the deployed Apps Script web app URL ending in /exec. A /dev link or regular Sheet link will not connect.", "url");
+  return url.toString();
+};
+
+async function sheetReports(url) {
+  const probe = new URL(url); probe.searchParams.set("action", "reports");
+  let response;
+  try { response = await fetch(probe, { redirect: "follow", signal: AbortSignal.timeout(12000) }); }
+  catch { throw new ApiError("sheet_unreachable", 400, "Google did not answer. Confirm the web app is deployed for anyone and try again."); }
+  if (!response.ok) throw new ApiError("sheet_unreachable", 400, `Google answered ${response.status}. Check the Apps Script deployment and try again.`);
+  const data = await response.json().catch(() => null);
+  if (!Array.isArray(data?.reports)) throw new ApiError("sheet_format", 400, "The link did not return reports. Update the Apps Script Code.gs and deploy it as a web app.");
+  return data.reports;
+}
+
+admin.get("/sheet", requireAdmin, asyncRoute(async (_req, res) => {
+  const url = await sheetWebhookUrl();
+  res.json({ configured: Boolean(url), url });
+}));
+
+admin.put("/sheet", requireAdmin, asyncRoute(async (req, res) => {
+  const url = validAppsScriptUrl(req.body?.url);
+  await sheetReports(url);
+  await query(
+    `insert into settings(key, value, updated_at) values ($1, $2, now())
+     on conflict(key) do update set value = excluded.value, updated_at = now()`,
+    ["sheetWebhookUrl", url]
+  );
+  res.json({ configured: true, url });
+}));
+
+admin.post("/sheet/import", requireAdmin, asyncRoute(async (_req, res) => {
+  const url = await sheetWebhookUrl();
+  if (!url) throw new ApiError("sheet_not_configured", 409, "Add and connect the Apps Script /exec link first.");
+  const sourceRows = await sheetReports(url);
+  if (sourceRows.length > 20000) throw new ApiError("sheet_too_large", 413, "This sheet has over 20,000 reports. Import it in smaller groups.");
+  let imported = 0;
+  let skipped = 0;
+  for (const source of sourceRows) {
+    try {
+      const result = await insertReport(newReport(source));
+      if (result.created) imported += 1;
+      else skipped += 1;
+    } catch (problem) {
+      if (problem.status === 400) { skipped += 1; continue; }
+      throw problem;
+    }
+  }
+  res.json({ imported, skipped, total: sourceRows.length });
+}));
+
 admin.get(
   "/status",
   requireAdmin,
   asyncRoute(async (req, res) => {
     const { reports, since } = await reportsSummary();
-    const configured = mirrorEnabled();
+    const configured = Boolean(await sheetWebhookUrl());
     res.json({
       // Enough to answer "is the Google Sheet copy keeping up?" without opening the
       // sheet. A queue that is not zero and an error that is not empty is the whole

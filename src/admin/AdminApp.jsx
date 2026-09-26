@@ -31,6 +31,8 @@ import Board from "../components/Board.jsx";
 import AgentChart from "./AgentChart.jsx";
 import EntryEditor from "./EntryEditor.jsx";
 import CustomerLedger from "../customers/CustomerLedger.jsx";
+import ReportsDashboard from "./ReportsDashboard.jsx";
+import { apiGet, apiSend } from "../lib/api.js";
 
 /**
  * How often the register asks the server again.
@@ -558,7 +560,11 @@ function download(entries) {
 }
 
 function Panel({ onSignOut }) {
-  const [activeTab, setActiveTab] = useState("register");
+  const [activeTab, setActiveTab] = useState(() =>
+    ["customers", "reports", "settings"].includes(new URLSearchParams(window.location.search).get("page"))
+      ? new URLSearchParams(window.location.search).get("page")
+      : "register"
+  );
   // The cache, read once per render and used only to seed the boxes below. It is
   // this device's last-known copy, not the register: the server's own set arrives a
   // moment later in the effect further down and replaces it.
@@ -684,6 +690,10 @@ function Panel({ onSignOut }) {
   // a line about the register.
   const [health, setHealth] = useState(undefined);
   const [healthBusy, setHealthBusy] = useState(false);
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetBusy, setSheetBusy] = useState(false);
+  const [sheetNote, setSheetNote] = useState("");
+  const [sheetNoteOk, setSheetNoteOk] = useState(true);
   const [editing, setEditing] = useState(""); // id of the report being corrected
   const [confirming, setConfirming] = useState(""); // id waiting for "yes, delete"
   const [showAll, setShowAll] = useState(false);
@@ -702,6 +712,14 @@ function Panel({ onSignOut }) {
   const [putting, setPutting] = useState(""); // id being put back right now
   // null until the admin picks one, and "" once they choose every month.
   const [view, setView] = useState(null);
+
+  function selectTab(tab) {
+    setActiveTab(tab);
+    const url = new URL(window.location.href);
+    if (tab === "register") url.searchParams.delete("page");
+    else url.searchParams.set("page", tab);
+    window.history.replaceState({}, "", url);
+  }
 
   const entries = useMemo(() => mergeRegister(storedRows, outbox), [storedRows, outbox]);
 
@@ -744,10 +762,54 @@ function Panel({ onSignOut }) {
     setHealth(got);
   }
 
+  async function readSheetSettings() {
+    try {
+      const connected = await apiGet("/api/admin/sheet");
+      setSheetUrl(connected.url || "");
+    } catch {
+      setSheetUrl("");
+    }
+  }
+
+  async function connectSheet() {
+    setSheetBusy(true);
+    setSheetNote("");
+    try {
+      const connected = await apiSend("PUT", "/api/admin/sheet", { url: sheetUrl.trim() });
+      setSheetUrl(connected.url || sheetUrl.trim());
+      setSheetNote("Google Sheet connected. You can import existing reports now.");
+      setSheetNoteOk(true);
+      await readHealth();
+    } catch (problem) {
+      setSheetNote(problem.message || "Could not connect to this Google Sheet.");
+      setSheetNoteOk(false);
+    } finally {
+      setSheetBusy(false);
+    }
+  }
+
+  async function importSheet() {
+    setSheetBusy(true);
+    setSheetNote("");
+    try {
+      const result = await apiSend("POST", "/api/admin/sheet/import", {});
+      setSheetNote(`Imported ${result.imported} report${result.imported === 1 ? "" : "s"}; skipped ${result.skipped} existing or invalid row${result.skipped === 1 ? "" : "s"}.`);
+      setSheetNoteOk(true);
+      await latest.current();
+      await readHealth();
+    } catch (problem) {
+      setSheetNote(problem.message || "Could not import reports from this Sheet.");
+      setSheetNoteOk(false);
+    } finally {
+      setSheetBusy(false);
+    }
+  }
+
   // Read once on open: the register itself, and how the server says it is doing.
   useEffect(() => {
     latest.current();
     readHealth();
+    readSheetSettings();
   }, []);
 
   // Then keep reading, so a report an agent sends turns up here by itself — but
@@ -1358,13 +1420,19 @@ function Panel({ onSignOut }) {
 
   return (
     <div className="app admin">
-      {activeTab === "customers" ? (
+      {["customers", "reports"].includes(activeTab) ? (
         <main className="card" style={{ maxWidth: "none" }}>
           <div className="head-act" style={{ justifyContent: "space-between", marginBottom: 16 }}>
-            <button type="button" className="mini" onClick={() => setActiveTab("register")}>Back to admin</button>
+            <button type="button" className="mini" onClick={() => selectTab("register")}>Back to admin</button>
             <button type="button" className="mini" onClick={onSignOut}>Sign out</button>
           </div>
-          <CustomerLedger />
+          <div className="choice" style={{ marginBottom: 18 }}>
+            <button type="button" className="chip" onClick={() => selectTab("register")}>Register admin</button>
+            <button type="button" className={`chip${activeTab === "customers" ? " is-on" : ""}`} aria-current={activeTab === "customers" ? "page" : undefined} onClick={() => selectTab("customers")}>Customers</button>
+            <button type="button" className={`chip${activeTab === "reports" ? " is-on" : ""}`} aria-current={activeTab === "reports" ? "page" : undefined} onClick={() => selectTab("reports")}>Reports</button>
+            <button type="button" className="chip" onClick={() => selectTab("settings")}>Settings</button>
+          </div>
+          {activeTab === "customers" ? <CustomerLedger /> : <ReportsDashboard />}
         </main>
       ) : (
       <main className="card">
@@ -1375,11 +1443,12 @@ function Panel({ onSignOut }) {
               Manage collection
             </p>
             <h1 className="month">
-              {effective.name}
-              <span className="month-year">{effective.year}</span>
+              {activeTab === "settings" ? "Settings" : <>{effective.name}<span className="month-year">{effective.year}</span></>}
             </h1>
             <p className="lede">
-              {openNow
+              {activeTab === "settings"
+                ? "Control the form, connections and admin access."
+                : openNow
                 ? "This is the month agents are filling in right now."
                 : "Collection is closed. Agents see a notice instead of the form."}
             </p>
@@ -1407,12 +1476,15 @@ function Panel({ onSignOut }) {
         </header>
 
         <div className="choice" style={{ marginBottom: 18 }}>
-          <button type="button" className="chip is-on" aria-current="page">Register admin</button>
-          <button type="button" className="chip" onClick={() => setActiveTab("customers")}>Customers</button>
+          <button type="button" className={`chip${activeTab === "register" ? " is-on" : ""}`} aria-current={activeTab === "register" ? "page" : undefined} onClick={() => selectTab("register")}>Register admin</button>
+          <button type="button" className="chip" onClick={() => selectTab("customers")}>Customers</button>
+          <button type="button" className="chip" onClick={() => selectTab("reports")}>Reports</button>
+          <button type="button" className={`chip${activeTab === "settings" ? " is-on" : ""}`} aria-current={activeTab === "settings" ? "page" : undefined} onClick={() => selectTab("settings")}>Settings</button>
         </div>
 
-        <div className="grid">
+        <div className={activeTab === "settings" ? "grid settings-grid" : "grid"}>
           <div className="column">
+            {activeTab === "register" && (
             <section className="section" onChangeCapture={mark} onClickCapture={mark}>
               <div className="section-head">
                 <h2 className="section-title">Which month</h2>
@@ -1482,7 +1554,9 @@ function Panel({ onSignOut }) {
                 </div>
               )}
             </section>
+            )}
 
+            {activeTab === "settings" && <>
             <section className="section" onChangeCapture={mark} onClickCapture={mark}>
               <div className="section-head">
                 <h2 className="section-title">The form</h2>
@@ -2008,15 +2082,49 @@ function Panel({ onSignOut }) {
               </p>
             </section>
 
-            {/* The only place this page says anything about the machinery behind it,
-                and it answers the two questions that used to need a shell and a
-                password: how much is actually in the register, and is the Google
-                Sheet copy keeping up. Nothing here can be changed — that is why it
-                sits outside Save, and why the only button on it asks again. */}
+            {/* Connection controls live beside the register health summary, so an
+                admin can connect and import the Sheet without a terminal. */}
             <section className="section">
               <div className="section-head">
-                <h2 className="section-title">Behind the page</h2>
+                <h2 className="section-title">Google Sheet connection</h2>
                 {sheetWord && <span className="section-note">{sheetWord}</span>}
+              </div>
+              <p className="hint">
+                Paste the deployed Apps Script web app link ending in <code>/exec</code>. A normal
+                spreadsheet link or the temporary <code>/dev</code> link will not connect.
+              </p>
+              <div className="row">
+                <label className="label" htmlFor="sheet-web-app-url">Apps Script web app URL</label>
+                <div className="well">
+                  <input
+                    id="sheet-web-app-url"
+                    className="scheme-input"
+                    type="url"
+                    inputMode="url"
+                    autoComplete="url"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    value={sheetUrl}
+                    onChange={(event) => setSheetUrl(event.target.value)}
+                  />
+                </div>
+              </div>
+              {sheetNote && <p className={sheetNoteOk ? "hint" : "hint is-error"} role="status">{sheetNote}</p>}
+              <div className="section-foot">
+                <button type="button" className="add" onClick={connectSheet} disabled={sheetBusy || !sheetUrl.trim()}>
+                  {sheetBusy ? "Connecting…" : "Save and connect"}
+                </button>
+                <button type="button" className="mini" onClick={importSheet} disabled={sheetBusy || !mirror?.configured}>
+                  {sheetBusy ? "Working…" : "Import existing reports"}
+                </button>
+              </div>
+              <p className="hint">
+                Import adds reports that are not already in the register. Repeating the import is safe.
+                New form submissions and customer-ledger changes are copied after connection. The
+                public Apps Script endpoint does not return the private Customers tab.
+              </p>
+              <hr className="section-rule" />
+              <div className="section-head">
+                <h2 className="section-title">Register status</h2>
               </div>
               {health === undefined ? (
                 <p className="hint">Asking the server…</p>
@@ -2033,11 +2141,7 @@ function Panel({ onSignOut }) {
                     counted.
                   </p>
                   {!mirror.configured ? (
-                    <p className="hint">
-                      No sheet copy is set up, so the Dashboard tab is not being
-                      updated. Every report is still in the register — the copy is a
-                      convenience, never the record.
-                    </p>
+                    <p className="hint">Connect the Sheet above to copy reports and import existing rows.</p>
                   ) : mirror.queue > 0 ? (
                     <p className="hint">
                       {mirror.queue} thing{mirror.queue === 1 ? "" : "s"} still to copy
@@ -2132,8 +2236,10 @@ function Panel({ onSignOut }) {
                   "At least ten characters. Changing it signs every other device out — which is what to do if you ever think somebody else has it."}
               </p>
             </section>
+            </>}
           </div>
 
+          {activeTab === "register" && (
           <div className="column">
             <section className="section">
               <div className="section-head">
@@ -2502,6 +2608,7 @@ function Panel({ onSignOut }) {
               )}
             </section>
           </div>
+          )}
         </div>
       </main>
       )}

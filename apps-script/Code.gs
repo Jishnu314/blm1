@@ -6,12 +6,13 @@
  * app writes to Supabase first; the Edge Function mirrors changes here. Editing
  * this sheet does not update the main register.
  *
- * One script answers seven things:
+ * One script answers eight things:
  *   POST  action=saveReport      one report  ->  its row in "Reports" (new or corrected)
  *   POST  action=deleteReport    &id=…       ->  that row, gone
  *   POST  (no action)            an older copy of the app posting a new report
  *   POST  action=saveSettings    what the admin changed  ->  the "Settings" tab
  *   POST  action=saveImage       a shrunk popup picture  ->  a Drive folder
+ *   POST  action=saveCustomers  customer ledger          ->  the "Customers" tab
  *   GET   ?action=reports        every row, so any phone can show the register
  *   GET   ?action=settings       the settings, so every agent's phone agrees
  *   GET   ?action=images         what is already in the Drive folder
@@ -155,6 +156,9 @@ function doPost(e) {
     if (action === "saveImage") {
       return json_(savePicture_(form.name, form.data));
     }
+    if (action === "saveCustomers") {
+      return json_(saveCustomers_(form.customers));
+    }
     if (action === "deleteReport") {
       return json_(deleteReport_(form.id));
     }
@@ -164,6 +168,36 @@ function doPost(e) {
   } catch (problem) {
     return json_({ error: String(problem) });
   }
+}
+
+/**
+ * Keep an owner-readable copy of the customer ledger in its own tab. There is
+ * deliberately no GET action for this tab, so the public web-app URL cannot be
+ * used to read customer names and payment history.
+ */
+function saveCustomers_(raw) {
+  var customers;
+  try { customers = JSON.parse(String(raw || "[]")); } catch (badJson) { throw new Error("Customer data was not valid JSON."); }
+  if (Object.prototype.toString.call(customers) !== "[object Array]" || customers.length > 3000)
+    throw new Error("Customer list was too large or had an invalid format.");
+  var headings = ["Id", "Name", "Scheme", "Type", "Payment mode", "Interval months", "Amount", "Term years", "Joined", "Expires", "Payments json", "Edits json", "Completed / claimed", "Claimed date"];
+  var sheet = tab_("Customers", headings);
+  if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.max(sheet.getLastColumn(), headings.length)).clearContent();
+  if (customers.length === 0) return { ok: true, count: 0 };
+  var rows = customers.map(function (c) {
+    return [String(c.id || ""), String(c.name || ""), String(c.schemeName || ""), String(c.schemeType || ""),
+      String(c.paymentMode || ""), Number(c.intervalMonths || 0), Number(c.amount || 0), Number(c.periodYears || 0),
+      String(c.joinedDate || ""), String(c.expiryDate || ""), JSON.stringify(c.paid || {}), JSON.stringify(c.edited || {}),
+      c.claimed ? "yes" : "no", c.claimedDate ? String(c.claimedDate) : ""];
+  });
+  sheet.getRange(2, 1, rows.length, headings.length).setValues(rows);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, headings.length).setFontWeight("bold");
+  sheet.setColumnWidth(2, 190);
+  sheet.setColumnWidth(3, 150);
+  sheet.setColumnWidths(9, 2, 150);
+  sheet.setColumnWidths(11, 2, 220);
+  return { ok: true, count: rows.length };
 }
 
 /* --- the reports tab ----------------------------------------------------- */

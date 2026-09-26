@@ -58,6 +58,25 @@
   align-items: start;
 }
 
+/* Settings are a separate area from the live register. Keep the controls in two
+   readable columns on desktop, then stack them on a phone. */
+.settings-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+.settings-grid > .column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.settings-grid > .column > .section {
+  margin: 0;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .settings-grid > .column { grid-template-columns: minmax(0, 1fr); }
+}
+
 .column {
   min-width: 0;
 }
