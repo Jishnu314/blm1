@@ -1,6 +1,6 @@
 // The popup's pictures, kept in Postgres.
 //
-// In the database rather than on disk on purpose: Render's filesystem is wiped on
+// In the database rather than on disk on purpose: hosted filesystems may be wiped on
 // every deploy, so a poster written to a folder would vanish the next time you push.
 // A few hundred kilobytes of bytea is nothing to Postgres and it is backed up with
 // everything else.

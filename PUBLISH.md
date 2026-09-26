@@ -1,273 +1,117 @@
-# Publishing this
+# Publish with GitHub Pages and Supabase
 
-Everything below is done once. Budget an hour, most of it waiting on installs.
+The production setup is **GitHub Pages** for the website and **Supabase** for the
+database, image storage, and API. There is no Railway or Render server in this setup.
+The API is a Supabase Edge Function, and the Supabase database is the main register.
+The Google Sheet can remain a secondary copy.
 
-## Where it stands today
+This repository is `Jishnu314/blm1`. The site address will be
+`https://jishnu314.github.io/blm1/`.
 
-Three of the four hard parts are already built. The fourth is missing entirely.
+## 1. Create the Supabase project and tables
 
-| | |
+1. Create a project at [Supabase](https://supabase.com/) and save its database
+   password privately.
+2. In the project, open **SQL Editor → New query**. Paste and run the complete file
+   `supabase/migrations/001_initial.sql`. It creates the register tables, access
+   controls, image bucket, and database functions.
+3. Open **Edge Functions → Secrets** and add `ADMIN_PASSWORD` with a private password
+   of at least 10 characters. The function creates its admin password record on the
+   first sign-in. Optionally add `SHEET_WEBHOOK_URL` with the existing Apps Script
+   `/exec` URL to keep copying changes to the Google Sheet.
+
+The `register-images` bucket is public-read so agents can load announcement posters;
+it only accepts JPEG, PNG, and WebP files up to 2 MB. Database tables remain private.
+
+The Edge Function uses Supabase's built-in service key on the server side. Do not
+copy that secret key into GitHub or the website.
+
+## 2. Connect GitHub to Supabase
+
+In GitHub, open this repository's **Settings → Secrets and variables → Actions**.
+
+Add these **repository variables**:
+
+| Name | Value |
 | --- | --- |
-| **A real password** | Done. Typed into `/admin/`, checked on the server, stored as a scrypt hash, and the session comes back as a cookie no script on the page can read. `server/src/auth.js`, `server/src/routes/admin.js`. Ten wrong tries per quarter hour and it stops answering. |
-| **The Google Sheet copy** | Done, and the `/exec` URL is already deployed — it is sitting in `server/.env`. Every write still reaches the Dashboard tab. |
-| **The pages** | Done. `/form/` for agents, `/admin/` for you, one build, one origin. |
-| **Somewhere to run** | Missing. No database, no admin password set, no Git repo, no host. That is this whole file. |
+| `VITE_API_URL` | `https://YOUR-PROJECT-REF.supabase.co/functions/v1/api` |
+| `VITE_SUPABASE_ANON_KEY` | The project's public `anon` key from Supabase **Project Settings → API Keys** |
 
-One thing said plainly, because it changes how you should spend the next hour:
-**nothing in `server/` has ever been executed.** Its two dependencies are on disk, so
-`npm install` has been run at some point — but not one query and not one request. It was
-written by reading the contract and then frozen. So step 2 is not a formality. It is the
-first test this code has ever had, and a failure on your own machine costs a minute
-where the same failure inside a deploy log costs twenty.
+Add these **repository secrets**:
 
-## 1. A database that will not expire — Neon (5 minutes)
+| Name | Value |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | A Supabase personal access token |
+| `SUPABASE_PROJECT_ID` | The project reference shown in the Supabase dashboard URL/settings |
 
-Not Render's free Postgres: it expires 30 days after you make it and deletes the data
-14 days later. A register that quietly empties itself six weeks in is worse than no
-register. Not Supabase either, for this one — a free project pauses after 7 days of
-no traffic and you have to go and restore it by hand, and this app is idle for three
-weeks out of every four. Neon suspends instead of pausing: it goes to sleep after
-five minutes and wakes on the next query in well under a second, with nothing for you
-to do.
+The `anon` key is intended for the browser; database access is blocked by row-level
+security and goes through the Edge Function. Never use the service-role/secret key
+as a GitHub variable.
 
-1. Go to **neon.com** and sign up. Signing in with GitHub is the easy road, since you
-   need a GitHub account for step 4 anyway. No card is asked for.
-2. **New Project.** It asks for three things: a name (anything), a Postgres version
-   (take the default) and a **region**. A project's region cannot be changed
-   afterwards, so choose the one you will also choose for Render in step 5 —
-   Singapore, from India. What matters is that the database sits near the *server*,
-   not near the agents: every query goes Render → Neon, and a phone never talks to the
-   database at all.
-3. On the Project Dashboard, click **Connect**, top right. The panel that opens builds
-   the whole string for you, password included — copy it. That button is always there,
-   so nothing is shown only once. If it offers a pooled connection, take it.
-4. Open `server/.env` in Notepad and put the string on the `DATABASE_URL=` line, all
-   one line, no quotes:
+For local development, create `.env.local` in the repository root with the same two
+public values (`VITE_API_URL` and `VITE_SUPABASE_ANON_KEY`). This file is ignored by
+Git. Restart Vite after creating or changing it; when `VITE_API_URL` is set, browser
+requests go straight to Supabase instead of the legacy local Express proxy.
 
-   ```
-   DATABASE_URL=postgresql://neondb_owner:…@ep-….aws.neon.tech/neondb?sslmode=require
-   ```
+Use this format, replacing both placeholders with values from **Supabase → Project
+Settings → API**:
 
-   If a connection later gets refused, delete `&channel_binding=require` from the end
-   of it. Everything else in that file is already correct and can be left alone.
-
-The free plan is $0 with no time limit: 0.5 GB of storage and 100 compute-hours a
-month. Reports and settings will never come near that; popup pictures might eventually,
-because they are kept in the database as bytes rather than on a disk that a deploy would
-wipe. A shrunk poster is a couple of hundred kilobytes, so it is thousands of them
-before this matters — but that is the number to watch, and old posters can be taken off
-the shelf from the admin page.
-
-`server/.env` is never committed — `server/.gitignore` covers it. Nothing in this
-step ever reaches GitHub or the published JavaScript.
-
-## 2. The first run, on your own machine (20 minutes)
-
-You need **Node 20 or newer**. `node -v` in a terminal says which you have.
-
-Open a terminal in `D:\Desktop\New folder` and go in order. Each command proves one
-thing, and the point of doing them separately is that when one fails you know exactly
-what failed.
-
-```
-cd server
-npm install
+```dotenv
+VITE_API_URL=https://YOUR-PROJECT-REF.supabase.co/functions/v1/api
+VITE_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
 ```
 
-*Proves: express and pg are there, and nothing here needs a compiler.* There is no
-bcrypt and no multer in this server precisely so this step cannot fail on Windows. If it
-finishes instantly saying `up to date`, it has been run before and that is fine.
+## 3. Deploy the API
 
-```
-npm run migrate
-```
+1. In GitHub, open **Settings → Pages** and choose **GitHub Actions** as the source.
+2. Push the project files to the repository's `main` branch.
+3. The push starts **Deploy Supabase API** automatically. If needed, open the
+   repository's **Actions** tab, select **Deploy Supabase API**, and choose **Run
+   workflow** to redeploy the function.
+4. Open `https://YOUR-PROJECT-REF.supabase.co/functions/v1/api/api/health` in a
+   browser. A working API reports `"database":true`.
 
-*Proves: `DATABASE_URL` is right, TLS to Neon works, and `schema.sql` is valid.* It
-should print `Tables are in place.` This is the statement most likely to fail —
-every line of that SQL was written by hand and none of it has been near a database.
-If it complains, the message names the table and the column; send it to me as it is.
+## 4. Publish the website
 
-```
-npm run set-password -- "something you will remember"
-```
+The same push to `main` starts **Publish frontend to GitHub Pages** automatically.
+When it finishes, open:
 
-*Proves: scrypt works and the one admin row is written.* At least 10 characters. This
-is the password for `/admin/` from now on. It is stored as a hash, so nobody —
-including me — can read it back out; if you forget it, run this again.
+- Agent form: `https://jishnu314.github.io/blm1/form/`
+- Admin page: `https://jishnu314.github.io/blm1/admin/`
 
-```
-npm run dev
-```
+The admin password is the `ADMIN_PASSWORD` secret you set in Supabase. Admin sessions
+are kept in this browser tab's session storage, so the admin remains signed in while
+that tab is open.
 
-*Proves: the server boots and holds a pool.* Leave it running. Open
-<http://localhost:8787/api/health> in a browser: it should say
-`{"ok":true,...,"database":true}`. `"database":false` means it is listening but cannot
-reach Neon.
+## 5. Bring over existing data
 
-Now a **second terminal**, in `D:\Desktop\New folder`:
+The SQL setup makes Supabase the new main database; it does not automatically copy
+old Sheet rows into it. Import the Sheet's existing reports before agents start using
+the new form:
 
-```
-npm install
-npm run dev
-```
+1. Copy `server/.env.example` to `server/.env`.
+2. Put the Supabase **Session pooler** PostgreSQL connection string in `DATABASE_URL`
+   and the Apps Script `/exec` URL in `SHEET_WEBHOOK_URL`.
+3. In a terminal, open the `server` folder, run `npm install`, then
+   `npm run import-sheet`. It skips report IDs already present and can be run again
+   safely.
+4. Sign in to `/admin/` and confirm the old reports are present.
 
-Open <http://localhost:5173/admin/> and sign in with the password you just set. Then
-<http://localhost:5173/form/> and send one test report. Back on the admin page it
-should appear in the register, and within a minute it should also appear in the Google
-Sheet — that last part is the `/exec` URL in `server/.env` doing its job.
+Keep `server/.env` private; it must not be committed. This importer copies reports
+from the Sheet, not from a previous Neon database. Old popup images stored in the
+previous Postgres `bytea` table do not move automatically; upload them again from the
+admin page and select the new image in the popup setting. If the database already
+contains the old Express admin password hash, the first login resets it to the
+`ADMIN_PASSWORD` Edge Function secret you set above.
 
-**If the login says "could not reach the server", the first terminal is not running.**
-Both have to be up in development: Vite on 5173 serves the pages and passes `/api`
-through to 8787.
+## GitHub Pages visibility and costs
 
-## 3. Prove one process can serve the lot (5 minutes)
+GitHub Pages on GitHub Free requires a public repository, and the published site is
+public. Make the repository public only if you are comfortable sharing its source;
+never commit credentials or `.env` files. See [GitHub's Pages guide](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site).
+Check [Supabase pricing and limits](https://supabase.com/pricing) before using it
+long-term; free project limits and pause behavior may change.
 
-On Render there is no Vite — the Express process serves the built pages itself. Worth
-seeing that work before you rely on it. Stop the Vite terminal, then in the project
-root:
-
-```
-npm run build
-```
-
-That writes `dist/`. Restart the server terminal (`npm run dev` in `server`) and watch
-its first lines: it should now say **`Serving the built pages from …\dist`**. If it
-says `No built pages at …` then `dist` is not where it expects and Render would serve
-the API with nothing in front of it.
-
-Now open <http://localhost:8787/form/> — no 5173 involved. Sign in at
-<http://localhost:8787/admin/> too. What you are looking at is exactly what Render
-will serve.
-
-## 4. Put it on GitHub (10 minutes)
-
-Render deploys from a repository, and this folder is not one yet — there is no `.git`
-here at all. In the project root:
-
-```
-git init
-git add .
-git commit -m "Monthly report collection: form, admin, server"
-```
-
-Before that commit, run `git status` and read the list once. **`server/.env` and both
-`node_modules` must not be in it.** They are covered by `.gitignore` and
-`server/.gitignore`, but this is the one moment where being wrong about that publishes
-your database password, so look rather than assume. `dist` is ignored too, which is
-correct — Render builds it.
-
-Then on **github.com** → **New repository**. Name it something you will recognise in a
-year (`monthly-report-collection`), and make it **private** — nothing here needs to be
-public, and private costs nothing. Do not let GitHub add a README or a `.gitignore`;
-you already have both. It then shows you two lines to paste, roughly:
-
-```
-git remote add origin https://github.com/Jishnu314/monthly-report-collection.git
-git branch -M main
-git push -u origin main
-```
-
-From now on, `git add .` → `git commit -m "…"` → `git push` is how a change reaches
-the live site. **Render only ever runs what has been pushed** — this bit the FORM app
-once, where a feature that existed only on your machine 404'd in production.
-
-## 5. Render (10 minutes, mostly waiting)
-
-`render.yaml` in this folder already describes the service, so you are confirming
-rather than filling in a form.
-
-1. **render.com** → **New** → **Blueprint**.
-2. Connect the repository you just pushed. It finds `render.yaml` and shows one web
-   service called `renewal-register`.
-3. It asks for the three values the file deliberately does not contain:
-
-   | | |
-   | --- | --- |
-   | `DATABASE_URL` | the same Neon string from `server/.env` |
-   | `SHEET_WEBHOOK_URL` | the `/exec` URL, also already in `server/.env` |
-   | `ADMIN_PASSWORD` | **leave it empty.** It only creates an account against an empty database, and yours already has one — you set it in step 2, against this same Neon database. |
-
-4. **Apply**. First build takes three to five minutes: it installs the frontend, runs
-   `vite build`, installs the server, then boots and creates any missing tables.
-
-Your address is `https://renewal-register.onrender.com` — and the two links that
-matter are `…onrender.com/form/` for agents and `…onrender.com/admin/` for you. The
-trailing slash matters. Nothing anywhere links to `/admin/`, so bookmark it.
-
-Because production points at the same database you tested against, the test report you
-sent in step 2 is already sitting in the live register. Delete it from the admin page.
-
-### If the build fails
-
-Read the last twenty lines of the Render log; two failures are much likelier than the
-rest. **`vite: not found`** means the `--include=dev` in the build command got lost —
-`NODE_ENV` is `production`, npm reads that and skips `devDependencies`, and `vite`
-lives in `devDependencies`. **`DATABASE_URL is not set`** is exactly what it says, and
-the service prints the whole explanation before it stops.
-
-One rarer one worth recognising: a message about **`@rollup/rollup-linux-x64-gnu`**
-being missing. That is not your mistake — the lock file was written on Windows and npm
-occasionally fails to pick up the Linux equivalent. Delete `package-lock.json` in the
-project root, commit that, and push; the build will resolve it fresh.
-
-A service that starts but logs `No built pages at …` is a build that half-worked: the
-API is up, `/form/` gives you nothing. Same cause as the first one.
-
-## 6. Check it like an agent would
-
-Five things, in this order. Only the last two need a phone.
-
-1. `…onrender.com/api/health` → `{"ok":true,…,"database":true}`.
-2. `…onrender.com/form/` loads and looks right.
-3. `…onrender.com/admin/` → sign in. **This is the real test of the password**, because
-   the session cookie is `Secure` in production and was not on localhost. If the page
-   accepts the password and then acts as though you never signed in, the cookie is
-   being dropped — tell me, that is a five-minute fix, not a rebuild.
-4. On your phone, **off wifi, on mobile data**, open `/form/` and send a report. This
-   is the only test that proves an agent in another town can reach it.
-5. Admin page → the register shows that report, and the Google Sheet gets it within a
-   minute.
-
-## Two things about the free tiers, so they do not surprise you
-
-**The site falls asleep.** A free Render service that goes 15 minutes without a visitor
-spins down, and the next visitor waits 30 to 60 seconds while it wakes. For this app
-that is nearly harmless — agents arrive in a burst at month end, so the first one waits
-and everybody after them is fast. Live with it, or pay Render's $7 a month, or point a
-free monitor (cron-job.org, UptimeRobot) at it every 10 minutes to keep it awake.
-
-**If you do use a monitor, point it at `/form/` and not at `/api/health`.** The health
-route runs `select 1` against Postgres to answer, so pinging it every ten minutes would
-keep Neon awake around the clock — and awake around the clock does not fit in the free
-plan's 100 compute-hours: a month is about 730 hours, and even Neon's smallest compute
-would spend roughly 180. `/form/` is a static file off disk and touches no database, so
-it wakes Render and lets Neon go on sleeping. And before you set a monitor up at all:
-Render's free plan allows only so many instance hours a month across *all* your free
-services, and the FORM backend is already spending some of them. Keeping two services
-awake around the clock will not fit either. Check the current allowance on your Render
-dashboard first.
-
-**Neon sleeps too, but harmlessly.** It suspends after five minutes idle and wakes on
-the next query in a fraction of a second. Nothing for you to do, no restoring, and it
-does not expire. That is exactly why it is Neon here and not Render's own free Postgres
-(deleted after 30 days) or a second Supabase project (paused after 7 days idle, and you
-would be at the free limit of two).
-
-## Changing the password later
-
-From the admin page, not from a terminal — and doing it there signs out every other
-device, which is the point of having it. `ADMIN_PASSWORD` on Render stays empty; it is
-only ever read against an empty database.
-
-## What I have not checked, and you should not assume
-
-- **Nothing was run today.** The shell was unavailable in this session, so no `npm`, no
-  Node, no `psql` and no request. There is no test harness in this folder either — this
-  file and `render.yaml` were written by reading the code on both sides of every call.
-- **The SQL has still never touched a database.** `npm run migrate` in step 2 is its
-  first run. That is the single most likely place for this to go wrong.
-- **`render.yaml` has never been applied.** The field names come from Render's
-  blueprint spec; the first **Apply** is its first test.
-- **`src/lib/images.js` has never executed** — it needs a real canvas and FileReader, so
-  uploading a popup picture is untested code the first time you do it.
-- **I cannot see pixels.** Every layout judgement in this project is still yours.
+After the new form and admin page work and the existing data has been imported, you
+can delete the old Render service from its dashboard. Removing `render.yaml` from the
+repository alone does not delete an already deployed service.

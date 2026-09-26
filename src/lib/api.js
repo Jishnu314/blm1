@@ -1,36 +1,21 @@
-// Where the server is, and how to ask it for anything.
-//
-// This file exists for the reason sheet.js existed: nothing should have to import
-// the store to learn the address. entries.js, submit.js, settings.js and images.js
-// all make calls, and if the wrapper lived in any one of them the other three
-// would import that one — and the store would end up importing the thing that
-// imports the store.
-//
-// What changed is what is at the other end. It used to be Google's /exec URL,
-// which forced a form-encoded body and no custom headers (so the browser would
-// skip a CORS preflight Apps Script cannot answer), and it meant the webhook
-// address was baked into the published JavaScript for anyone to read. Now it is
-// our own server on the same origin, speaking JSON, and the sheet's /exec URL is
-// known only to it. server/API.md is the contract; every call here keeps it.
-//
-// Two things follow from same-origin that are worth saying out loud: there is no
-// address to configure, and the admin session can be an HttpOnly cookie the page
-// itself cannot read.
+// Shared API client for the form and admin pages. Production calls the Supabase
+// Edge Function; local development may use Vite's proxy to the legacy Express API.
+// The anon key is public and only identifies the Supabase project. The secret
+// service key and admin password stay on the Edge Function.
 
 /**
- * What to put in front of every path. Empty means "same origin", which is the
- * normal case in both halves of this app's life:
+ * What to put in front of every path:
  *
  *   development  Vite proxies /api to the server on 8787 (see vite.config.js),
  *                so the browser only ever sees localhost:5173.
- *   production   that same server serves these built pages, so /api is a
- *                sibling of the page that asked for it.
+ *   production   GitHub Actions sets this to the Supabase Edge Function URL.
  *
- * Set VITE_API_URL only if the pages and the API are deliberately split apart —
- * or if the built site is ever hosted under a sub-path, since the paths below are
- * absolute while `base: "./"` in vite.config.js allows the pages not to be.
+ * VITE_API_URL is blank for local Vite proxy development. In production it ends
+ * with /functions/v1/api; client paths append /api/... after that.
  */
-export const API_BASE = import.meta.env.VITE_API_URL || "";
+export const API_BASE = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
+const SUPABASE_ANON_KEY = String(import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim();
+const SESSION_KEY = "renewal-register-admin-session";
 
 /**
  * A failure with the server's own words in it.
@@ -85,13 +70,14 @@ async function request(method, path, body) {
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method,
-      // The admin session is an HttpOnly cookie, so it has to be sent — and
-      // "same-origin" rather than "include" is the point: it goes to our own
-      // server and nowhere else, whatever address anything else on the page has.
-      credentials: "same-origin",
-      headers: sending
-        ? { Accept: "application/json", "Content-Type": "application/json" }
-        : { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        ...(sending ? { "Content-Type": "application/json" } : {}),
+        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY } : {}),
+        ...(sessionStorage.getItem(SESSION_KEY)
+          ? { Authorization: `Bearer ${sessionStorage.getItem(SESSION_KEY)}` }
+          : {}),
+      },
       body: sending ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -172,4 +158,3 @@ export const isUnauthorised = (problem) => problem instanceof ApiError && proble
  */
 export const isRefusal = (problem) =>
   problem instanceof ApiError && (problem.status === 400 || problem.status === 404);
-

@@ -75,7 +75,7 @@ create table if not exists admin_sessions (
 
 create index if not exists admin_sessions_expires_at_idx on admin_sessions (expires_at);
 
--- Posters live in Postgres, not on disk, because Render wipes the filesystem on
+-- Posters live in Postgres, not on disk, because hosted filesystems may be wiped on
 -- every deploy and a poster written to disk would vanish the next time you push.
 create table if not exists images (
   id         bigserial primary key,

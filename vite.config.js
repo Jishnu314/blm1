@@ -4,10 +4,10 @@ import react from "@vitejs/plugin-react";
 // base: "./" keeps asset paths relative, so the built site works from any
 // folder or sub-path.
 //
-// Three pages, three folders — the addresses jishn asked for:
-//   /form/    the form every agent opens
-//   /admin/   the admin screen: separate page, unlinked, password-gated
-//   /         a redirect to /form/, so the bare address is harmless
+// Four pages — the addresses jishn asked for:
+//   /form/             the form every agent opens
+//   /admin/            the admin screen: separate page, unlinked, password-gated
+//   /                  a redirect to /form/, so the bare address is harmless
 //
 // "Password-gated" now means what it says. It used to mean a code compared in the
 // browser, so hiding the page was the only protection there was and renaming this
@@ -18,7 +18,11 @@ import react from "@vitejs/plugin-react";
 // doing the work.
 export default defineConfig({
   plugins: [react()],
-  base: "./",
+  // GitHub Pages serves this repository under /blm1/. Locally, keep relative
+  // URLs so the same build also works from the project root.
+  base: process.env.GITHUB_ACTIONS
+    ? `/${String(process.env.GITHUB_REPOSITORY || "").split("/")[1] || "blm1"}/`
+    : "./",
   build: {
     rollupOptions: {
       input: {

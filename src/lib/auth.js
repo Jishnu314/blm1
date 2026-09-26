@@ -1,17 +1,11 @@
-// Signing in to the admin page.
-//
-// This replaces a code compared in the browser. The difference is not the number
-// of characters: the old PIN sat in the built JavaScript, so anyone who opened the
-// page could read it out of the bundle, and it protected nothing but the *sight*
-// of the page — the register itself was readable by anyone holding the webhook
-// address. Now the password is only ever checked on the server, and the register
-// route refuses to answer at all without the session cookie it hands back.
-//
-// Nothing in here holds the session. The cookie is HttpOnly, which means this file
-// cannot read it even if it wanted to, and that is the point — no script on the
-// page can copy it out. All these four calls do is ask the server what it thinks.
+// Admin sign-in to the Supabase Edge Function. The password is never placed in the
+// published bundle. Supabase returns a short-lived-in-this-tab bearer session;
+// protected API routes reject requests without it. The local Express server remains
+// supported for development and uses its same-origin cookie session.
 
 import { apiGet, apiSend, ApiError } from "./api.js";
+
+const SESSION_KEY = "renewal-register-admin-session";
 
 /** Is this browser signed in? Answers false rather than throwing. */
 export async function whoAmI() {
@@ -27,7 +21,7 @@ export async function whoAmI() {
 }
 
 /**
- * Try a password.
+ * Try the configured admin password.
  *
  * A wrong password and a rate-limited attempt are told apart, because one is
  * "try again" and the other is "wait" — but a wrong password is never told how
@@ -40,7 +34,10 @@ export async function whoAmI() {
  */
 export async function signIn(password) {
   try {
-    await apiSend("POST", "/api/admin/login", { password });
+    const data = await apiSend("POST", "/api/admin/login", { password });
+    // Production Edge Function sessions use a bearer token. The older local
+    // Express server still uses its same-origin HttpOnly cookie.
+    if (data?.token) sessionStorage.setItem(SESSION_KEY, data.token);
     return { ok: true, note: "" };
   } catch (problem) {
     if (problem instanceof ApiError && problem.status === 401) {
@@ -60,8 +57,10 @@ export async function signIn(password) {
 export async function signOut() {
   try {
     await apiSend("POST", "/api/admin/logout");
+    sessionStorage.removeItem(SESSION_KEY);
     return { ok: true };
   } catch {
+    sessionStorage.removeItem(SESSION_KEY);
     return { ok: false };
   }
 }

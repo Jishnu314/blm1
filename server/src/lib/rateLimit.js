@@ -5,13 +5,12 @@
 // IP per route — one agent hammering the form must not close the door on another.
 //
 // What "in memory" costs, said out loud: the counts reset when the process restarts
-// or is deployed, and a second instance would keep its own tally. On one small
-// Render instance that is exactly right and costs nothing. If this ever runs on two
-// instances, the counts belong in Postgres instead.
+// or is deployed, and a second instance would keep its own tally. This is only the
+// legacy local API; production uses Supabase Postgres-backed counters.
 //
 // req.ip is only the real phone when Express has been told to trust the proxy in
-// front of it (TRUST_PROXY=1). Without that, everybody behind Render's proxy shares
-// one bucket — which is why config.js has that variable at all.
+// front of it (TRUST_PROXY=1). Without that, everybody behind a proxy shares one
+// bucket — which is why config.js has that variable at all.
 
 import { ApiError } from "./http.js";
 

@@ -15,7 +15,7 @@
 // every value is read defensively rather than believed. A row with no name is not a
 // report; it is a row somebody started and abandoned.
 
-import { migrate, pool, tx } from "../src/db.js";
+import { pool, tx } from "../src/db.js";
 import { config } from "../src/config.js";
 import { monthKeyOf } from "../src/lib/month.js";
 
@@ -65,8 +65,6 @@ async function readSheet() {
 }
 
 async function run() {
-  await migrate();
-
   const rows = await readSheet();
   console.log(`The sheet handed back ${rows.length} row${rows.length === 1 ? "" : "s"}.`);
 

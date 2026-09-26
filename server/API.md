@@ -91,6 +91,8 @@ session:
 | POST | `/api/admin/logout` | admin |
 | POST | `/api/admin/password` | admin |
 | GET | `/api/admin/status` | admin |
+| GET | `/api/admin/customers` | admin |
+| PUT | `/api/admin/customers` | admin |
 
 **Reading the register is admin-only, which it never was before.** With the sheet as
 the register, the `/exec` URL sat in the published JavaScript and anyone holding it
@@ -204,8 +206,8 @@ no multipart parser here and no upload dependency.
 → `201 { "image": { "id": 12, "url": "/api/images/12", "name": "poster.jpg",
 "bytes": 148230, "when": "2026-09-03T…Z" } }`
 
-The bytes go into Postgres, not onto disk, on purpose: Render's filesystem is wiped on
-every deploy, so a poster written to disk would vanish the next time you push. Only
+The bytes go into a private Supabase Storage bucket, not onto disk, on purpose: a
+hosted service's filesystem may be wiped on every deploy. Only
 `image/jpeg`, `image/png` and `image/webp` are accepted, at most 2 MB after decoding.
 
 `GET /api/images` → `{ "images": [ … newest first … ] }` — the shelf of everything
@@ -218,29 +220,25 @@ poster once. `DELETE /api/images/:id` → `{ "ok": true }`.
 
 ## The admin session
 
-`POST /api/admin/login` with `{ "password": "…" }` → `200 { "ok": true }` and a
-`Set-Cookie: mr_session=…`. Wrong password is `401 unauthorised` with the same
-message every time and no hint about whether the password was close.
+`POST /api/admin/login` with `{ "password": "…" }` → `200 { "ok": true,
+"token": "…" }`. The frontend keeps this bearer token in session storage and sends
+it as `Authorization: Bearer …` on protected requests. Wrong password is
+`401 unauthorised` with the same message every time.
 
-The cookie is `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` whenever `NODE_ENV` is
-`production`, and lasts 30 days, extended on use. `HttpOnly` is the point: no
-JavaScript on the page can read it, so the token cannot be copied out the way the PIN
-in `config.js` could simply be read out of the bundle.
+The token expires 30 days after use and is stored in the database as
+`sha256(token)`, never as the token itself. Passwords use PBKDF2 with a random salt.
+Set the initial `ADMIN_PASSWORD` in Supabase **Edge Functions → Secrets**; the
+function hashes it into `admin_account` on the first successful setup.
 
-What is stored server-side is `sha256(token)`, never the token. The password is stored
-as `scrypt` with a per-password salt (`node:crypto`, so there is no native `bcrypt`
-build to fail on Windows), compared with `timingSafeEqual`.
-
-Rate limit: 10 attempts per IP per 15 minutes, then `429` with `Retry-After`. Every
-attempt also waits a moment before answering, so the endpoint cannot be used to
-measure anything.
+Rate limit: 10 login attempts per IP per 15 minutes. The database keeps the rate
+limit counters so separate Edge Function instances share the same limit.
 
 `GET /api/admin/me` → `{ "signedIn": true|false }`, and deliberately **200 either
 way** — the admin page asks it on open to decide whether to show the login form, and a
 401 there would just be noise in the console.
 
-`POST /api/admin/logout` → `{ "ok": true }`, clears the cookie and deletes that one
-session row. Other devices stay signed in.
+`POST /api/admin/logout` → `{ "ok": true }` and deletes that session row. Other
+devices stay signed in.
 
 `POST /api/admin/password` with `{ "current": "…", "next": "…" }` → `{ "ok": true }`.
 `next` must be at least 10 characters. Changing it **signs every other device out** by
@@ -252,24 +250,24 @@ the Google Sheet copy keeping up?" without opening the sheet.
 
 ## The Google Sheet copy
 
-The sheet is no longer the register. Postgres is. But every write here is also pushed
-to the existing Apps Script `/exec` URL **from the server**, in the same form-encoded
+The sheet is no longer the register. Supabase Postgres is. When configured, writes are
+also pushed to the existing Apps Script `/exec` URL **from the Edge Function**, in the same form-encoded
 language `apps-script/Code.gs` already speaks (`saveReport`, `deleteReport`,
 `saveSettings`, `saveImage`), so neither `.gs` file needs a single change and the
 Dashboard tab keeps working exactly as it does today.
 
 Three things follow, and they matter:
 
-1. **The `/exec` URL is now only ever known to the server.** It moves out of the
+1. **The `/exec` URL is only ever known to the Edge Function.** It moves out of the
    frontend `.env` — where `npm run build` baked it into published JavaScript — and
-   into `server/.env`. Nothing in the browser can see it any more.
+   into Supabase **Edge Functions → Secrets**. Nothing in the browser can see it.
 2. **A failed push is never a failed request.** The push is queued in a
-   `mirror_queue` table and retried with a growing delay. Nothing an agent typed
-   depends on Google being awake. `GET /api/admin/status` reports the queue depth.
+   `mirror_queue` table and retried with a growing delay when the API is invoked
+   again. Nothing an agent typed depends on Google being awake. `GET
+   /api/admin/status` reports the queue depth.
 3. **Editing a figure in the sheet no longer changes anything.** It is a copy. That
    is the trade this design makes: the ✎ / grid marks stay on old rows as history, but
    from now on corrections happen in the admin page.
 
 If `SHEET_WEBHOOK_URL` is not set, nothing is queued and nothing is owed — the app is
 complete without it.
-

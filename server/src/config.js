@@ -6,7 +6,7 @@
 // a connection error forty lines into a stack trace at three in the morning.
 //
 // There is no dotenv. `npm run dev` uses `node --env-file=.env`, which is Node's
-// own (20.6+), and on Render the variables come from the dashboard.
+// own (20.6+). This file serves only the legacy local Express helper.
 
 function text(name, fallback = "") {
   const value = process.env[name];
@@ -31,7 +31,7 @@ function required(name, why) {
  * Whether to speak TLS to the database, and how carefully.
  *
  * `auto` means: a database anywhere other than this machine is reached across the
- * internet, so TLS is on. Render's and Supabase's certificates are not signed by
+ * internet, so TLS is on. Some hosted database certificates are not signed by
  * anything in Node's trust store, so verification is off — that stops somebody
  * reading the connection, not somebody who can already stand in the middle of it.
  * If your provider gives you a CA file, `require` plus a real ca is the better
@@ -58,7 +58,7 @@ function sslFor(url, mode) {
  *
  * 8787 rather than 3000 on purpose: 3000 is what every other Node thing on a
  * developer's machine grabs, and the number has to match the one Vite proxies to
- * in vite.config.js. Render sets PORT itself and this default is ignored there.
+ * in vite.config.js. The hosted API is a Supabase Edge Function instead.
  */
 function port() {
   const asked = Number(text("PORT", "8787"));
@@ -75,11 +75,23 @@ const databaseUrl = required(
     "",
     "  DATABASE_URL=postgres://user:password@localhost:5432/renewal_register",
     "",
-    "On Render, set it in the service's Environment tab instead.",
+    "This local helper reads DATABASE_URL from server/.env.",
   ].join("\n")
 );
 
 const nodeEnv = text("NODE_ENV", "development");
+const corsOrigins = text("CORS_ORIGINS")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+const defaultSameSite = nodeEnv === "production" && corsOrigins.length > 0 ? "none" : "lax";
+const sessionSameSite = (text("COOKIE_SAME_SITE") || defaultSameSite).toLowerCase();
+if (!["lax", "strict", "none"].includes(sessionSameSite)) {
+  throw new Error("COOKIE_SAME_SITE must be lax, strict, or none");
+}
+if (sessionSameSite === "none" && nodeEnv !== "production") {
+  throw new Error("COOKIE_SAME_SITE=none requires NODE_ENV=production (HTTPS)");
+}
 
 export const config = {
   databaseUrl,
@@ -87,6 +99,8 @@ export const config = {
   port: port(),
   nodeEnv,
   isProduction: nodeEnv === "production",
+  sessionSameSite,
+  corsOrigins,
   // Only ever used to create the account the first time. Never compared against.
   adminPassword: text("ADMIN_PASSWORD"),
   // Empty means there is no sheet copy: nothing is queued and nothing is owed.

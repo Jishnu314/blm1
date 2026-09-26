@@ -40,7 +40,7 @@ export function buildApp() {
   // Nothing is gained by telling the world which server this is.
   app.disable("x-powered-by");
 
-  // Behind Render's proxy every request otherwise looks like it came from the proxy,
+  // Behind the hosting proxy every request otherwise looks like it came from the proxy,
   // and the rate limits would be shared by everybody instead of being per phone.
   if (config.trustProxy) app.set("trust proxy", 1);
 
@@ -49,6 +49,33 @@ export function buildApp() {
   // The real limit on a picture is 2mb of decoded bytes, checked in validate.js.
   app.use(express.json({ limit: "4mb" }));
   app.use(cookies);
+
+  // Allow a separately hosted frontend only when its exact origin is listed.
+  // Credentialed requests cannot use a wildcard origin, and the login cookie
+  // stays HttpOnly. The default same-origin/Vite-proxy setup needs no CORS.
+  app.use((req, res, next) => {
+    const origin = String(req.headers.origin || "").replace(/\/$/, "");
+    if (!origin || !config.corsOrigins.includes(origin)) {
+      if (req.method === "OPTIONS" && origin) {
+        res.status(403).json({ error: { code: "forbidden_origin", message: "This website is not allowed to call the API." } });
+        return;
+      }
+      next();
+      return;
+    }
+
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Access-Control-Allow-Credentials", "true");
+    res.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Accept, Content-Type");
+    res.vary("Origin");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
 
   /**
    * Is this thing working? Always 200, even when the database is not — a health check

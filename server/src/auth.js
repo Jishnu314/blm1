@@ -217,7 +217,8 @@ export function cookies(req, res, next) {
 }
 
 function cookieFor(value, maxAge) {
-  const bits = [`${COOKIE}=${value}`, "HttpOnly", "Path=/", "SameSite=Lax", `Max-Age=${maxAge}`];
+  const sameSite = config.sessionSameSite[0].toUpperCase() + config.sessionSameSite.slice(1);
+  const bits = [`${COOKIE}=${value}`, "HttpOnly", "Path=/", `SameSite=${sameSite}`, `Max-Age=${maxAge}`];
   // Secure only in production: on http://localhost a Secure cookie is dropped by
   // the browser and nobody can sign in while developing.
   if (config.isProduction) bits.push("Secure");

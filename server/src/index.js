@@ -32,7 +32,7 @@ async function main() {
   let stopping = false;
 
   /**
-   * Render sends SIGTERM on every deploy and gives a short grace period.
+   * Hosting platforms send SIGTERM on deploy and give a short grace period.
    *
    * So: stop taking new connections, let the ones in flight finish, put the pool down,
    * and go. Anything the sheet is still owed is in mirror_queue and will be picked up

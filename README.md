@@ -38,19 +38,22 @@ true, and the report would sit in the outbox blocking everything behind it. The
 form guards its own boxes so this should not happen; "should not" and "cannot"
 want different code.
 
-## Three pieces
+## Project structure
 
 ```
-the pages     Vite + React — /form/ for the agents, /admin/ for you
-the server    Express + Postgres in server/ — the register, and the password
-the sheet     the same Google Sheet as before, now a copy the server keeps up
+the pages       Vite + React — /form/ for agents, /admin/ for you
+the API         Supabase Edge Function — report API and admin password/session
+the database    Supabase Postgres and Storage — register data and popup pictures
+the sheet       optional secondary copy, updated by the Edge Function
 ```
 
-**Postgres is the register.** Every report, every deposit line, the settings the
-admin page changes and the popup pictures all live in it. A phone holds nothing but
-what it has not managed to send yet.
+**Supabase is the register.** Every report, every deposit line, settings, and popup
+pictures live in Supabase Postgres and Storage. The Edge Function is the only part
+allowed to use the server key; browser access to the tables is blocked by row-level
+security. Popup posters live in a public Storage bucket so agents can load them. A
+phone holds what it has not managed to send yet.
 
-**The Google Sheet is a copy.** Every write here is pushed to the same Apps Script
+**The Google Sheet is a copy.** When configured, every write is pushed to the same Apps Script
 `/exec` URL this app used to talk to directly, in the same form-encoded language
 `apps-script/Code.gs` already answers — so the Dashboard tab you read on a Sunday
 evening keeps working and neither `.gs` file needs a single change. Nothing is lost
@@ -58,11 +61,11 @@ if Google is asleep: the push waits in a queue table and is retried. Leave
 `SHEET_WEBHOOK_URL` unset and there is no copy at all and nothing is owed; the app
 is complete without one.
 
-Two documents belong to the server half and are worth knowing before you change
-anything: [`server/API.md`](./server/API.md) is the contract — every route, every
-shape, who may call what — and every call in `src/lib/` keeps it. If the code and
-that file ever disagree, the code is wrong. [`server/README.md`](./server/README.md)
-is the long version of running and deploying it.
+[`server/API.md`](./server/API.md) documents the API contract — each route, response
+shape, and access rule. The deployed API is in
+[`supabase/functions/api/index.ts`](./supabase/functions/api/index.ts), and the
+database setup is in [`supabase/migrations/001_initial.sql`](./supabase/migrations/001_initial.sql).
+[`server/README.md`](./server/README.md) covers the legacy local Express server.
 
 ## Which month is it collecting for?
 
@@ -95,16 +98,18 @@ password is not a value the build is allowed to see.
 /         redirects to /form/
 ```
 
-Published, that reads as `https://your-site/form` and `https://your-site/admin`,
-with `/api/*` alongside them on the same origin. Agents only ever get the `/form`
-link.
+Published on GitHub Pages, the links include the repository path, for example
+`https://jishnu314.github.io/blm1/form/` and
+`https://jishnu314.github.io/blm1/admin/`. Supabase Edge Functions handle API
+requests and connect to Supabase Postgres. See [`PUBLISH.md`](PUBLISH.md) for the
+deployment steps. Agents only ever get the `/form/` link.
 
 ## Run it on your PC
 
 Two processes now, because there is a server. Two terminals, one in each folder.
 
 **The server first.** You need a Postgres to point at — locally
-`createdb renewal_register`, or a hosted one on Render or Supabase — and a
+`createdb renewal_register`, or a hosted one on Supabase — and a
 password. In `server/`:
 
 ```
@@ -134,6 +139,9 @@ through to it, which is what leaves the browser seeing a single origin: no CORS 
 arrange anywhere, and no API address baked into the published JavaScript. If you
 change `PORT` in `server/.env`, change the proxy in `vite.config.js` to match.
 
+In production, GitHub Actions sets `VITE_API_URL` to the Supabase Edge Function
+address and includes the public anon key. See `PUBLISH.md` for the account setup.
+
 **Then, once:** bring the reports already in the sheet across, so the register
 starts with the history instead of empty. In `server/`, with `SHEET_WEBHOOK_URL`
 set:
@@ -162,35 +170,17 @@ the phone for its number pad, and type this large only looks right on a real scr
 
 ## The admin page
 
-It is a **separate page, not a route inside the form** — its own folder, its own
-HTML file, its own bundle. Nothing in the form links to it, it carries `noindex`,
-and it shows a password box before anything else.
+`/admin/` is a separate, unlinked page with `noindex` and a password screen. Once
+signed in, the **Customers** tab opens the customer ledger inside that admin app.
+The ledger syncs its customer list to Supabase and keeps a local browser copy for
+offline fallback.
 
-**The password is checked on the server, and it is what stands in front of the
-register.** Every route that shows or changes the whole register refuses to answer
-without the session cookie that password buys. Two things follow. A stranger who
-finds `/admin/` finds a box and nothing else — and, the part that is new, the
-register itself is no longer readable by anyone who happens to know an address.
-
-Set it in `server/`:
-
-```
-npm run set-password -- "at least ten characters"
-```
-
-or put `ADMIN_PASSWORD` in `server/.env` before the first boot and the account is
-created from it. Either way it is stored as scrypt with its own salt and never as
-itself. After that you change it from the admin page, which signs every other device
-out. One caution about that command: a password typed on a command line is in your
-shell history afterwards, so on a machine you share, set it once that way and then
-change it from the page.
-
-The cookie is `HttpOnly`, so no script on the page can read it — which is precisely
-what the old PIN could not manage, sitting as it did in the built JavaScript for
-anyone to read out of the bundle. It is `SameSite=Lax`, `Secure` in production, and
-lasts 30 days, extended on use. Wrong passwords are limited to 10 tries per IP per
-15 minutes and answer with the same sentence every time, whether the password was
-close or nothing like it.
+**The password is checked by the Supabase Edge Function.** Set `ADMIN_PASSWORD`
+under Supabase **Edge Functions → Secrets** before first sign-in. The function stores
+a salted PBKDF2 hash in Postgres. It returns a 30-day bearer session that this browser
+tab keeps in session storage; protected API routes require that session. Wrong
+password attempts are limited to 10 per IP per 15 minutes. Change the password from
+the admin page; that signs out other sessions.
 
 Renaming the `admin` folder — say to `office-7k2`, changing the matching line in
 `vite.config.js` — is still a reasonable thing to do. It is simply no longer the
@@ -406,17 +396,15 @@ before Send is even offered.
 ## The Google Sheet, now that it is a copy
 
 The sheet is still there, still worth opening on a Sunday evening, and the Dashboard
-tab still draws itself. What changed is which way the arrow points: the server pushes
-every write to it, and nothing in it is read back.
+tab still draws itself. The Supabase Edge Function pushes writes to it; nothing in
+the Sheet is read back into the live register.
 
 Three things follow, and they matter:
 
-1. **The `/exec` URL is now known only to the server.** It moved out of the frontend
-   `.env`, where `npm run build` copied it into published JavaScript, and into
-   `server/.env` as `SHEET_WEBHOOK_URL`. Nothing in a browser can see it any more.
-   Each folder has its own `.gitignore` and each keeps its own `.env` out of git.
-2. **A failed push is never a failed request.** It waits in a `mirror_queue` table
-   and is retried with a growing delay. Nothing an agent typed depends on Google
+1. **The `/exec` URL is known only to the Edge Function.** Set it as the Supabase
+   `SHEET_WEBHOOK_URL` Edge Function secret. It is not in the published JavaScript.
+2. **A failed push is never a failed report submission.** It waits in a
+   `mirror_queue` table and is retried with a growing delay on later API activity. Nothing an agent typed depends on Google
    being awake, and the admin page's **Behind the page** section says how deep the
    queue is.
 3. **Editing a figure in the tab no longer changes anything.** It is a copy. That is
@@ -462,13 +450,8 @@ Skip this whole section if you do not want the sheet copy. Without
 3. **Deploy → New deployment → Web app**, with *Execute as: **Me*** and *Who has
    access: **Anyone***. Still "Anyone" rather than "Anyone with a Google account",
    because it is now the server calling it and the server has no Google account.
-4. Copy the `/exec` URL into **`server/.env`** — not the `.env` next to
-   `package.json`, which is where it used to go and which is exactly the mistake this
-   rewire was for:
-
-   ```
-   SHEET_WEBHOOK_URL=https://script.google.com/macros/s/xxxxx/exec
-   ```
+4. Copy the `/exec` URL into Supabase **Edge Functions → Secrets** as
+   `SHEET_WEBHOOK_URL`.
 
 5. Restart the server — stop `npm run dev` and start it again, because `--watch`
    reloads code and not the environment. Whatever is already queued goes out on the
@@ -484,10 +467,9 @@ dashboard — those run inside your own spreadsheet. Only the part the server ta
 needs **Deploy → Manage deployments → edit → Deploy** again to pick up a change.
 
 **That URL is still worth protecting**, but it is no longer the keys to the register.
-Whoever holds it can read, write and delete rows *in the copy*, and the copy is not
-what any figure on this app is drawn from — the register is behind a password and a
-session cookie no page can read. Keep it in `server/.env` all the same and do not
-hand it to the agents; they only ever get the `/form` link.
+Whoever holds it can read, write and delete rows *in the copy*. The Edge Function
+keeps it as a Supabase secret; never put it in the frontend or GitHub variables.
+Agents only need the `/form/` link.
 
 ## The sheet you open on a Sunday evening
 
@@ -595,7 +577,7 @@ src/admin.css               the few controls only the admin page needs
 public/ads/                 popup pictures kept with the app instead of uploaded
 ```
 
-The server — two dependencies, `express` and `pg`, and nothing else:
+The previous local Express helper — two dependencies, `express` and `pg`:
 
 ```
 server/API.md               the contract. If the code disagrees, the code is wrong
@@ -604,25 +586,13 @@ server/.env.example         every variable, with a comment saying what it is for
 server/src/index.js         boot: migrate, make sure there is a password, listen,
                             start the sheet flusher, shut down without dropping a
                             request
-server/src/app.js           what is mounted in what order — the API first, the
-                            built pages second, and a catch-all under /api so a
-                            missing route can never answer a phone with HTML
-server/src/config.js        the environment, read once
-server/src/db.js            the pool, query(), tx(), and migrate()
-server/src/schema.sql       every table, all create-if-not-exists
-server/src/auth.js          scrypt passwords, session rows keyed by sha256(token),
-                            the HttpOnly cookie, and requireAdmin
-server/src/lib/http.js      one failure envelope for every failure
-server/src/lib/validate.js  every rule a client's figures have to pass
-server/src/lib/rateLimit.js per-IP counts, in this process's memory
-server/src/lib/month.js     "YYYY-MM", and never the words
-server/src/routes/*.js      reports, settings, images, admin
-server/src/services/*.js    the SQL behind those routes
-server/src/services/mirror.js  the sheet copy: one queue table, retried with a
-                            growing delay, so Google being asleep is never an
-                            agent's problem
-server/scripts/set-password.mjs   the password, from a terminal
-server/scripts/import-sheet.mjs   the old sheet's rows into Postgres, once
+supabase/functions/api/index.ts  deployed API, admin password/session, report
+                                 handling, images, settings and optional Sheet copy
+supabase/migrations/001_initial.sql  Supabase tables, RLS and database functions
+.github/workflows/pages.yml    builds and publishes the static website
+.github/workflows/supabase-api.yml  deploys the Edge Function
+server/                         previous local Express implementation and Sheet
+                                 import helper; not the hosted API
 apps-script/Code.gs         the Google side the server posts to — reports,
                             settings, pictures. Unchanged by this rewire
 apps-script/Dashboard.gs    the sheet an admin reads: the menu, the Dashboard tab,
@@ -630,108 +600,42 @@ apps-script/Dashboard.gs    the sheet an admin reads: the menu, the Dashboard ta
                             in the same Apps Script project
 ```
 
-What the server posts to the sheet for one report is the shape `Code.gs` already
+What the Edge Function posts to the sheet for one report is the shape `Code.gs` already
 expected: name, renewal, then `rdCount`/`rdTotal`/`rdDetail`
 (`"Jeevan Anand 5000 | Bhima Deposit 125000"`) and the same three for FD, plus
 `rdJson`/`fdJson`, and `submittedAt`. `editedAt` and `editedIn` are the sheet's own
 to write, as they always were.
 
-## What has been checked, and what only you can check
+## Deployment status
 
-**Be plain about this: none of the rewire has been run.** No `npm install`, no build,
-no dev server, no `psql`, no request — not once. Every claim in this file and in
-`server/API.md` was checked by reading the code on both sides of each call and making
-them agree: the route shapes out of the server's own source, the cookie flags out of
-`server/src/auth.js`, the queue's ordering out of `mirror.js`, and every new name
-grepped for a collision before it was used. That is worth something and it is not the
-same as a passing test. There is no test harness in this folder.
-
-So treat the first run as the first test, and in this order. Each step proves
-something the next one assumes:
-
-1. `npm install` and `npm run migrate` in `server/` — proves `DATABASE_URL`, TLS and
-   `schema.sql`. The SQL is the part most worth watching: every statement was written
-   by hand and none has been near a database.
-2. `npm run set-password -- "…"` — proves scrypt and the one admin row.
-3. `npm run dev`, then `http://localhost:8787/api/health` — proves the boot, the pool
-   and the shutdown.
-4. `npm install` and `npm run dev` in this folder, then open `/form/` — proves the
-   Vite proxy, which is the one piece of wiring with a number in two files.
-5. Sign in at `/admin/`, then look at the register — proves the cookie and the
-   session. Sign in with the wrong password first; it should say the same thing
-   however wrong it was.
-6. Send a report from the form. Then send one **with the wifi off**, turn it back on,
-   and reload: the receipt should say it is being held, the ✱ should appear beside it
-   in the register, and both should clear by themselves.
-7. Correct that report from the admin page, then delete it, then put it back from the
-   bin. The chart above the table should follow all three.
-8. `npm run import-sheet`, twice — the second run must bring in nothing.
-9. **Behind the page** — the queue should fall back to 0 within a minute of a write.
-
-And these need your eyes rather than a terminal, because nothing here can see pixels
-or a real Google:
-
-- **The Apps Script side was never re-tested**, because it was never changed. Open the
-  spreadsheet after a few reports have gone through and satisfy yourself the Dashboard
-  tab still reads well.
-- **Delete a report and put it back, then look at the Reports tab.** The row should be
-  at the bottom, and that is expected — see the note above about what the copy forgets.
-- **The popup picture.** Choose one, watch it appear on the shelf, save, and open the
-  form on your phone. `shrink()` has never executed here: it needs a real file chooser.
-- **Whether the register table still has a scrollbar along the bottom of its card.**
+The repository now contains the Supabase API, SQL setup, and GitHub Actions workflows.
+I have not deployed them or run a build. After setup, check the health URL, sign in,
+submit a report, and verify admin editing, restore, settings, image upload, and (if
+configured) the Google Sheet copy from real browsers.
 
 ## Publish it
 
-[`PUBLISH.md`](PUBLISH.md) is the click-by-click version of this section — database,
-GitHub, then Render, in that order, with a note on what each step proves. This is the
-shape of it.
+[`PUBLISH.md`](PUBLISH.md) is the click-by-click version of this section — Supabase
+and GitHub Pages.
 
-`npm run build` in this folder writes `dist/`, and the server serves that folder if it
-is there — `/form/`, `/admin/` and `/api/*` on one origin, which is what removes CORS
-from the project entirely. Without a `dist` it logs one line and serves the API alone.
-
-Three things are needed, in this order. **A database that will not expire** — not
-Render's free Postgres, which is deleted six weeks after it is made, and not a free
-Supabase project, which pauses after a week of no traffic and has to be woken by hand;
-this app is idle for three weeks out of every four. **A GitHub repository**, because
-Render deploys from one and only ever runs what has been pushed. **Then Render**: New →
-**Blueprint**, pointed at that repository — `render.yaml` in this folder already
-describes the service, so that step is confirming rather than filling in a form.
-
-What that file says, for doing it by hand instead: **Root Directory** `server`, **Start
-Command** `npm start`, **Health Check Path** `/api/health`, and a **Build Command** that
-builds both halves:
-
-```
-cd .. && npm install --include=dev && npm run build && cd server && npm install
-```
-
-**`--include=dev` is not decoration.** `NODE_ENV` is `production` in the environment
-below, npm reads that and skips `devDependencies`, and `vite` is a devDependency — so
-without the flag the build dies on `vite: not found` and the service comes up serving
-the API with no pages in front of it.
-
-Then the environment: `DATABASE_URL`, `NODE_ENV` set to `production` so the session
-cookie is `Secure`, `TRUST_PROXY` set to `1` so the rate limits are per phone rather
-than shared by everybody behind Render's proxy, `DATABASE_SSL` set to `auto`,
-`SHEET_WEBHOOK_URL` if you want the sheet copy, and `ADMIN_PASSWORD` only for a first
-deploy against an **empty** database — if you set the password locally against the same
-database, the account is already there and this one is ignored. The tables are created
-on boot, so there is no migration step to remember.
+`npm run build` in this folder writes the static `dist/` website. GitHub Actions
+publishes it to GitHub Pages, while a separate workflow deploys the `api` Edge
+Function to Supabase. The SQL setup and function deployment steps are in
+[`PUBLISH.md`](PUBLISH.md).
 
 **What publishing no longer means.** The old warning here was that `npm run build`
 copied the values out of `.env` into the JavaScript it produced, because that is the
 only way a page with no server behind it can know anything — so publishing the site
 published the webhook URL and the admin PIN inside it, and a public site was a
 spreadsheet anyone could write to and delete from. That is what this rewire was for.
-Now the built pages contain no address and no secret: the API is a sibling path, the
-`/exec` URL is the server's alone, and the password is a scrypt hash in a database.
-The root `.env` is left in place holding nothing but a comment saying so.
+Now the built pages contain the public Supabase project endpoint and public anon key.
+They contain no service-role key or admin password. The API and database access rules
+are on Supabase; the admin password is stored as a PBKDF2 hash in Postgres.
 
 Two honest limits remain, neither of them a reason to wait. The rate limits live in
 this one process's memory, so they reset on restart and a second instance would keep
 its own count — right for one small service, and they belong in Postgres if it ever
 runs on two. And `DATABASE_SSL=auto` encrypts the connection to the database without
-checking the certificate, because neither Render's nor Supabase's is signed by
+checking the certificate, because some hosted database certificates are not signed by
 anything in Node's trust store; if your provider hands you a CA file, wiring it in is
 a real improvement.

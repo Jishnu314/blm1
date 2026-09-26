@@ -1,10 +1,10 @@
 /**
  * The Google side of the monthly report form.
  *
- * THE SHEET IS THE REGISTER. Not this browser, not that phone — the sheet. Every
- * report lives in one row of "Reports", and both sides may write to it: the web
- * app through the calls below, and you, by typing in the tab like any other
- * spreadsheet. Whichever side you change, the other catches up.
+ * Supabase is the main register. This Apps Script keeps the Google Sheet as a
+ * secondary copy for the existing Dashboard and spreadsheet workflow. The web
+ * app writes to Supabase first; the Edge Function mirrors changes here. Editing
+ * this sheet does not update the main register.
  *
  * One script answers seven things:
  *   POST  action=saveReport      one report  ->  its row in "Reports" (new or corrected)
@@ -56,22 +56,14 @@
  * ---------------------------------------------------------------------------
  * WHO CAN REACH THIS — read this once
  *
- * "Anyone" means exactly that: whoever has the /exec URL can post a report,
- * change the settings and add a picture. There is no sign-in. That is the price
- * of agents opening a link and typing, and it is the same hole as the admin PIN:
- * the URL is inside the app every agent downloads, so it is not a secret. Now
- * that the sheet is the register rather than a copy of it, that URL can also
- * delete rows — so it matters more than it did.
+ * "Anyone" means exactly that: whoever has the /exec URL can change the Sheet
+ * copy. Supabase remains the protected main register; this mirror is not used by
+ * the form for reads or writes.
  *
- * What that does and does not mean in practice: nobody can read your Drive or
- * your other sheets — the script only touches what is written below. Somebody
- * who went looking could add junk rows, change your settings, or remove a
- * report. Google keeps the sheet's own version history, so a deletion is
- * recoverable by hand (File -> Version history).
+ * The script only touches this spreadsheet and its popup folder. Google keeps
+ * the Sheet's version history if someone changes this copy by hand.
  *
- * If that day comes, the fix is a real one — sign-in on the form, or a small
- * server of your own holding the key — not a longer URL. Ask me and I will
- * build it.
+ * The main register's admin routes are protected by the Edge Function session.
  */
 
 const REPORTS_TAB = "Reports";

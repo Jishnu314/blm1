@@ -1,0 +1,3 @@
+[functions.api]
+# The function provides both public agent routes and its own password/session checks.
+verify_jwt = false

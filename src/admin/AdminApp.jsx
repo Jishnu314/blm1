@@ -30,6 +30,7 @@ import Popup from "../components/Popup.jsx";
 import Board from "../components/Board.jsx";
 import AgentChart from "./AgentChart.jsx";
 import EntryEditor from "./EntryEditor.jsx";
+import CustomerLedger from "../customers/CustomerLedger.jsx";
 
 /**
  * How often the register asks the server again.
@@ -557,6 +558,7 @@ function download(entries) {
 }
 
 function Panel({ onSignOut }) {
+  const [activeTab, setActiveTab] = useState("register");
   // The cache, read once per render and used only to seed the boxes below. It is
   // this device's last-known copy, not the register: the server's own set arrives a
   // moment later in the effect further down and replaces it.
@@ -1356,6 +1358,15 @@ function Panel({ onSignOut }) {
 
   return (
     <div className="app admin">
+      {activeTab === "customers" ? (
+        <main className="card" style={{ maxWidth: "none" }}>
+          <div className="head-act" style={{ justifyContent: "space-between", marginBottom: 16 }}>
+            <button type="button" className="mini" onClick={() => setActiveTab("register")}>Back to admin</button>
+            <button type="button" className="mini" onClick={onSignOut}>Sign out</button>
+          </div>
+          <CustomerLedger />
+        </main>
+      ) : (
       <main className="card">
         <header className="head">
           <div className="head-text">
@@ -1394,6 +1405,11 @@ function Panel({ onSignOut }) {
             </p>
           </div>
         </header>
+
+        <div className="choice" style={{ marginBottom: 18 }}>
+          <button type="button" className="chip is-on" aria-current="page">Register admin</button>
+          <button type="button" className="chip" onClick={() => setActiveTab("customers")}>Customers</button>
+        </div>
 
         <div className="grid">
           <div className="column">
@@ -2488,6 +2504,7 @@ function Panel({ onSignOut }) {
           </div>
         </div>
       </main>
+      )}
       <p className="credit">Admin · /admin</p>
     </div>
   );
