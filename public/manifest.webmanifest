@@ -1,0 +1,20 @@
+{
+  "id": "./form/",
+  "name": "Monthly Report Collection",
+  "short_name": "Monthly Reports",
+  "description": "Submit monthly reports and manage customer collections.",
+  "start_url": "./form/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2f4f6",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "./app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

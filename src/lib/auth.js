@@ -1,5 +1,5 @@
 // Admin sign-in to the Supabase Edge Function. The password is never placed in the
-// published bundle. Supabase returns a short-lived-in-this-tab bearer session;
+// published bundle. Supabase returns a 30-day bearer session;
 // protected API routes reject requests without it. The local Express server remains
 // supported for development and uses its same-origin cookie session.
 
@@ -37,7 +37,14 @@ export async function signIn(password) {
     const data = await apiSend("POST", "/api/admin/login", { password });
     // Production Edge Function sessions use a bearer token. The older local
     // Express server still uses its same-origin HttpOnly cookie.
-    if (data?.token) sessionStorage.setItem(SESSION_KEY, data.token);
+    if (data?.token) {
+      try {
+        localStorage.setItem(SESSION_KEY, data.token);
+        sessionStorage.removeItem(SESSION_KEY);
+      } catch {
+        sessionStorage.setItem(SESSION_KEY, data.token);
+      }
+    }
     return { ok: true, note: "" };
   } catch (problem) {
     if (problem instanceof ApiError && problem.status === 401) {
@@ -57,10 +64,12 @@ export async function signIn(password) {
 export async function signOut() {
   try {
     await apiSend("POST", "/api/admin/logout");
-    sessionStorage.removeItem(SESSION_KEY);
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* browser storage may be blocked */ }
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* browser storage may be blocked */ }
     return { ok: true };
   } catch {
-    sessionStorage.removeItem(SESSION_KEY);
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* browser storage may be blocked */ }
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* browser storage may be blocked */ }
     return { ok: false };
   }
 }

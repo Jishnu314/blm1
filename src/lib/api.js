@@ -17,6 +17,23 @@ export const API_BASE = String(import.meta.env.VITE_API_URL || "").trim().replac
 const SUPABASE_ANON_KEY = String(import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim();
 const SESSION_KEY = "renewal-register-admin-session";
 
+function adminSession() {
+  try {
+    const saved = localStorage.getItem(SESSION_KEY);
+    if (saved) return saved;
+    // Move an existing tab-only session to persistent storage once, so users do
+    // not have to sign in again just because they opened a fresh browser tab.
+    const old = sessionStorage.getItem(SESSION_KEY);
+    if (old) {
+      localStorage.setItem(SESSION_KEY, old);
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+    return old || "";
+  } catch {
+    try { return sessionStorage.getItem(SESSION_KEY) || ""; } catch { return ""; }
+  }
+}
+
 /**
  * A failure with the server's own words in it.
  *
@@ -66,6 +83,7 @@ async function readBody(res) {
 
 async function request(method, path, body) {
   const sending = body !== undefined;
+  const token = adminSession();
   let res;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -74,9 +92,7 @@ async function request(method, path, body) {
         Accept: "application/json",
         ...(sending ? { "Content-Type": "application/json" } : {}),
         ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY } : {}),
-        ...(sessionStorage.getItem(SESSION_KEY)
-          ? { Authorization: `Bearer ${sessionStorage.getItem(SESSION_KEY)}` }
-          : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: sending ? JSON.stringify(body) : undefined,
     });
