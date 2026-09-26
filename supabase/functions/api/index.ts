@@ -271,7 +271,14 @@ async function drainMirror() {
 async function handle(req: Request) {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   const fullPath = new URL(req.url).pathname;
-  const route = fullPath.replace(/^\/functions\/v1\/api/, "").replace(/^\/api(?=\/|$)/, "") || "/";
+  // Supabase may pass the full gateway path or only the path below the function
+  // name, depending on the invocation route. The browser client appends `/api/...`
+  // to the function URL, so normalize any function prefix and repeated `/api`
+  // prefixes before dispatching.
+  let route = fullPath.replace(/^\/functions\/v1\/api(?=\/|$)/, "") || "/";
+  while (route === "/api" || route.startsWith("/api/")) {
+    route = route.slice(4) || "/";
+  }
   const url = new URL(req.url);
   const method = req.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? {} : await req.json().catch(() => ({}));
