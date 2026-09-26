@@ -11,6 +11,37 @@
   max-width: 1120px;
 }
 
+/* The admin is a full-width workspace, unlike the compact agent form. Keep its
+   frame inside the viewport at every zoom level; let long tables scroll in their
+   own panels instead of widening the whole page. */
+.app.admin {
+  width: 100%;
+  max-width: 100vw;
+  align-items: stretch;
+  overflow-x: clip;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+.admin > main.card {
+  width: min(100%, 1120px);
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin > main.card[style*="max-width: none"] {
+  width: 100%;
+  max-width: none;
+}
+
+.admin main,
+.admin .grid,
+.admin .column,
+.admin .section {
+  min-width: 0;
+}
+
 .admin-topbar {
   display: flex;
   align-items: center;
@@ -180,7 +211,13 @@
 
 @media (min-width: 900px) {
   .grid {
-    grid-template-columns: 380px minmax(0, 1fr);
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1050px) {
+  .grid:not(.settings-grid) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
