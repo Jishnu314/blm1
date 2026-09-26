@@ -1031,13 +1031,20 @@ function Panel({ onSignOut }) {
   );
   const agent = ranked.find((one) => one.id === picked) || ranked[0] || null;
 
-  // The page opens on the month being collected — that is what you came to look
-  // at. Two things fall back to every month: no reports for it yet, and the
-  // month you were reading losing its last report while you read it.
+  // The page opens on the month being collected. An explicit month choice stays
+  // selected even if it has no reports, so clicking an empty chart month does not
+  // unexpectedly switch the register back to every month.
   const wanted = view === null ? effective.key : view;
-  const viewKey = monthKeys.includes(wanted) ? wanted : "";
+  const viewKey = describeKey(wanted) && (view !== null || monthKeys.includes(wanted)) ? wanted : "";
   const viewLabel = viewKey ? describeKey(viewKey)?.full || viewKey : "";
   const shown = viewKey ? entries.filter((entry) => entry.month === viewKey) : entries;
+
+  function chooseReportMonth(key) {
+    setView(key);
+    setShowAll(false);
+    setEditing("");
+    setConfirming("");
+  }
 
   // The three kinds of money, added up over the reports being shown.
   const sums = shown.reduce(
@@ -2286,7 +2293,7 @@ function Panel({ onSignOut }) {
                     </span>
                   </div>
 
-                  <AgentChart months={months} max={scale} name={agent.name} />
+                  <AgentChart months={months} max={scale} name={agent.name} selectedMonth={viewKey} onSelectMonth={chooseReportMonth} />
 
                   {/* The same months as exact figures — the chart is the shape,
                       this is the number you read out to someone. It stops where
@@ -2397,7 +2404,7 @@ function Panel({ onSignOut }) {
                     </span>
                   </div>
 
-                  <AgentChart months={teamMonths} max={teamScale} name="Everyone together" />
+                  <AgentChart months={teamMonths} max={teamScale} name="Everyone together" selectedMonth={viewKey} onSelectMonth={chooseReportMonth} />
                 </>
               )}
 
@@ -2411,14 +2418,12 @@ function Panel({ onSignOut }) {
                     id="view-month"
                     className="scheme-input month-select"
                     value={viewKey}
-                    onChange={(event) => {
-                      setView(event.target.value);
-                      setShowAll(false);
-                      setEditing("");
-                      setConfirming("");
-                    }}
+                    onChange={(event) => chooseReportMonth(event.target.value)}
                   >
                     <option value="">All months</option>
+                    {viewKey && !monthKeys.includes(viewKey) && (
+                      <option value={viewKey}>{describeKey(viewKey)?.full || viewKey}</option>
+                    )}
                     {[...monthKeys].reverse().map((key) => (
                       <option key={key} value={key}>
                         {describeKey(key)?.full || key}
@@ -2448,6 +2453,11 @@ function Panel({ onSignOut }) {
                         </tr>
                       </thead>
                       <tbody>
+                        {shown.length === 0 && viewKey && (
+                          <tr>
+                            <td className="empty-cell is-nil" colSpan={7}>No reports in {viewLabel}.</td>
+                          </tr>
+                        )}
                         {(showAll ? shown : shown.slice(0, 8)).map((entry) => (
                           <EntryRow
                             key={entry.id}

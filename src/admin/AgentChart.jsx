@@ -56,10 +56,9 @@ function tick(month) {
 }
 
 /**
- * A list of months as bars. Each month is a slot with three bars standing side by
- * side in it — renewal, then new RD, then new FD, the order the legend reads.
- * Plain divs on purpose: no chart library, nothing to keep updated, and it prints
- * and scales like the rest of the page.
+ * A list of months as bars. Each month is a selectable button with three bars
+ * standing side by side — renewal, then new RD, then new FD, the legend order.
+ * Selecting a month filters the report list below to that month.
  *
  * The months can be one agent's or every agent added together — the register
  * draws its own six months with this same component, so there is only ever one
@@ -79,7 +78,7 @@ function tick(month) {
  * in from outside, and is the tallest single bar rather than the tallest month,
  * so every agent shares one scale and two of them compare honestly.
  */
-export default function AgentChart({ months, max, name }) {
+export default function AgentChart({ months, max, name, selectedMonth = "", onSelectMonth }) {
   const top = max > 0 ? max : 1;
   // A screen reader gets everything the bars and the hover card carry.
   const label = `${name}, month by month: ${months
@@ -101,12 +100,19 @@ export default function AgentChart({ months, max, name }) {
           <span>0</span>
         </div>
 
-        <div className="chart" role="img" aria-label={label}>
+        <div className="chart" role="group" aria-label={label}>
           {months.map((month) => {
             const bars = barsOf(month, top);
 
             return (
-              <div className="chart-col" key={month.key}>
+              <button
+                type="button"
+                className={`chart-col${selectedMonth === month.key ? " is-selected" : ""}`}
+                key={month.key}
+                aria-label={`Show reports for ${month.label}`}
+                aria-pressed={selectedMonth === month.key}
+                onClick={() => onSelectMonth?.(month.key)}
+              >
                 <span className="chart-value">{month.total > 0 ? short(month.total) : ""}</span>
 
                 {/* The month's own slot: one box, three bars standing in it. */}
@@ -159,7 +165,7 @@ export default function AgentChart({ months, max, name }) {
                     </span>
                   </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

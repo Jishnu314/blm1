@@ -327,6 +327,30 @@ select.scheme-input {
   display: flex;
   flex-direction: column;
   align-items: center;
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+.chart-col:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+
+.chart-col.is-selected .chart-group {
+  background: #edf5f2;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.chart-col.is-selected .chart-tick {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .chart-value {
@@ -448,7 +472,8 @@ select.scheme-input {
   transition: opacity 120ms var(--ease);
 }
 
-.chart-col:hover .tip {
+.chart-col:hover .tip,
+.chart-col:focus-visible .tip {
   opacity: 1;
   visibility: visible;
 }
