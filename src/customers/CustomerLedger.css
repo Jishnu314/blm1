@@ -56,7 +56,10 @@
 .ledger-details-toggle:hover { background:#f2f7fd; }
 .ledger-name-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .ledger-details-arrow { display:inline-grid; place-items:center; width:34px; height:34px; flex:0 0 34px; border:1px solid #d6e0ea; border-radius:8px; background:#fff; color:#1467a8; font-family:inherit; font-size:22px; font-weight:700; line-height:1; cursor:pointer; }
-.ledger-arrears-warning { margin:0; padding:9px 10px; border:1px solid #efcf94; border-radius:9px; background:#fff8e9; color:#825517; font-size:12px; line-height:1.45; }
+.ledger-arrears-warning { display:grid; gap:6px; margin:0; padding:9px 10px; border:1px solid #efcf94; border-radius:9px; background:#fff8e9; color:#825517; font-size:12px; line-height:1.45; }
+.ledger-arrears-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; }
+.ledger-arrears-actions button { min-height:42px; border:1px solid #d9b46f; border-radius:8px; padding:5px 10px; background:#fff; color:#70480d; font:inherit; font-weight:750; cursor:pointer; touch-action:manipulation; }
+.ledger-arrears-actions button:hover { background:#fff1d2; }
 .ledger-search { display: flex; align-items: center; gap: 9px; background: #fff; border: 1px solid var(--ledger-border); border-radius: 10px; padding: 0 12px; width: min(290px, 100%); height: 42px; color: #738198; }
 .ledger-search > span:not(.sr-only) { font-size: 22px; line-height: 1; }
 .ledger-search input { width: 100%; border: 0; outline: 0; color: var(--ledger-ink); font: inherit; font-size: 13px; background: transparent; }

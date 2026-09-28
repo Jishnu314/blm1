@@ -287,7 +287,7 @@ export default function CustomerLedger() {
       const dueMonthIdx = cursor.getMonth();
       const key = monthKey(dueYear, dueMonthIdx);
       if (dueStatus(c, dueYear, dueMonthIdx) === "due" && !c.paid[key]) {
-        unpaid.push(`${MONTHS[dueMonthIdx]} ${dueYear}`);
+        unpaid.push({ year: dueYear, monthIdx: dueMonthIdx, label: `${MONTHS[dueMonthIdx]} ${dueYear}` });
       }
       cursor.setMonth(cursor.getMonth() + 1);
     }
@@ -715,6 +715,27 @@ export default function CustomerLedger() {
                 <strong>{fmt(c.amount)}{c.schemeType === "RD" ? "/mo" : ""}</strong>
                 {c.schemeType === "RD" && <span>{paymentProgress(c).paid}/{paymentProgress(c).term} paid</span>}
               </div>}
+              {c.schemeType === "RD" && earlierUnpaid.length > 0 && (
+                <div className="ledger-arrears-warning">
+                  <strong>Earlier unpaid installments</strong>
+                  <span>Tap a month to record it; received in {currentMonth}.</span>
+                  <div className="ledger-arrears-actions">
+                    {earlierUnpaid.map((unpaid) => (
+                      <button
+                        type="button"
+                        key={unpaid.label}
+                        onClick={() => setConfirmPayment({
+                          customerId: c.id,
+                          key: monthKey(unpaid.year, unpaid.monthIdx),
+                          month: MONTHS[unpaid.monthIdx],
+                          year: unpaid.year,
+                          earlierUnpaid: earlierUnpaidMonths(c, unpaid.year, unpaid.monthIdx),
+                        })}
+                      >Record {unpaid.label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {c.schemeType === "FD" ? (
                 <button type="button" className={`ledger-mobile-payment-action${c.claimed ? " is-marked" : ""}`} onClick={() => toggleClaimed(c.id)}>
                   {c.claimed ? `Claimed ${fmtDate(c.claimedDate)}` : "Mark deposit claimed"}
@@ -741,7 +762,6 @@ export default function CustomerLedger() {
                   </div>
                 ) : (
                   <>
-                  {earlierUnpaid.length > 0 && !value && <p className="ledger-arrears-warning">Earlier unpaid installments: <strong>{earlierUnpaid.join(", ")}</strong>. Choose the month this payment covers.</p>}
                   <button
                     type="button"
                     className={`ledger-mobile-payment-action${value ? " is-marked" : ""}`}
@@ -1022,7 +1042,7 @@ export default function CustomerLedger() {
                 Record the <strong>{confirmPayment.month} {confirmPayment.year}</strong> installment for <strong>{customer.name}</strong>?
                 <br />Payment received in <strong>{currentMonth}</strong>.
                 {confirmPayment.earlierUnpaid?.length > 0 && (
-                  <><br /><strong>Earlier installments still unpaid: {confirmPayment.earlierUnpaid.join(", ")}.</strong> This mark will leave them outstanding.</>
+                  <><br /><strong>Earlier installments still unpaid: {confirmPayment.earlierUnpaid.map((month) => month.label).join(", ")}.</strong> This mark will leave them outstanding.</>
                 )}
               </p>
               <div style={styles.modalActions}>
