@@ -278,6 +278,22 @@ export default function CustomerLedger() {
     return "due";
   }
 
+  function earlierUnpaidMonths(c, year, monthIdx) {
+    const end = new Date(year, monthIdx, 1);
+    const cursor = startOfMonth(c.joinedDate);
+    const unpaid = [];
+    while (cursor < end && cursor < startOfMonth(c.expiryDate)) {
+      const dueYear = cursor.getFullYear();
+      const dueMonthIdx = cursor.getMonth();
+      const key = monthKey(dueYear, dueMonthIdx);
+      if (dueStatus(c, dueYear, dueMonthIdx) === "due" && !c.paid[key]) {
+        unpaid.push(`${MONTHS[dueMonthIdx]} ${dueYear}`);
+      }
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return unpaid;
+  }
+
   // Mark blank cells in one click. Clearing or changing a mark requires editing it.
   function toggleCell(rowId, year, monthIdx) {
     const key = monthKey(year, monthIdx);
@@ -490,7 +506,19 @@ export default function CustomerLedger() {
         <table className="ledger-table" style={styles.table}>
           <thead>
             <tr>
-              <th style={{ ...styles.th, ...styles.stickyCol, textAlign: "left" }}>Name</th>
+              <th style={{ ...styles.th, ...styles.stickyCol, textAlign: "left" }}>
+                <span className="ledger-name-heading">
+                  Name
+                  <button
+                    type="button"
+                    className="ledger-details-arrow"
+                    aria-label={showSchemeDetails ? "Hide scheme details" : "Show scheme details"}
+                    title={showSchemeDetails ? "Hide scheme details" : "Show scheme details"}
+                    aria-expanded={showSchemeDetails}
+                    onClick={() => setShowSchemeDetails((visible) => !visible)}
+                  >{showSchemeDetails ? "‹" : "›"}</button>
+                </span>
+              </th>
               {showSchemeDetails && <th style={{ ...styles.th, textAlign: "left" }}>Scheme · amount · paid</th>}
               {MONTHS.map((m, idx) => (
                 <th
@@ -588,7 +616,7 @@ export default function CustomerLedger() {
                         onClick={() => {
                           if (isEditing) return;
                           if (value) toggleCell(c.id, viewYear, idx);
-                          else setConfirmPayment({ customerId: c.id, key, month: m, year: viewYear });
+                          else setConfirmPayment({ customerId: c.id, key, month: m, year: viewYear, earlierUnpaid: earlierUnpaidMonths(c, viewYear, idx) });
                         }}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
@@ -678,6 +706,7 @@ export default function CustomerLedger() {
           const status = dueStatus(c, viewYear, mobileDueMonthIdx);
           const value = c.paid[key];
           const isEditing = editingCell === `${c.id}-${key}`;
+          const earlierUnpaid = earlierUnpaidMonths(c, viewYear, mobileDueMonthIdx);
           return (
             <article className="ledger-mobile-customer" key={c.id}>
               <button type="button" className="ledger-mobile-customer-name" onClick={() => setDetailCustomer(c)}>{c.name}</button>
@@ -711,15 +740,18 @@ export default function CustomerLedger() {
                     <button type="button" onClick={() => commitManualEdit(c.id, key, "")}>Clear</button>
                   </div>
                 ) : (
+                  <>
+                  {earlierUnpaid.length > 0 && !value && <p className="ledger-arrears-warning">Earlier unpaid installments: <strong>{earlierUnpaid.join(", ")}</strong>. Choose the month this payment covers.</p>}
                   <button
                     type="button"
                     className={`ledger-mobile-payment-action${value ? " is-marked" : ""}`}
                     onClick={() => value
                       ? startManualEdit(c.id, key, value)
-                      : setConfirmPayment({ customerId: c.id, key, month: MONTHS[mobileDueMonthIdx], year: viewYear })}
+                      : setConfirmPayment({ customerId: c.id, key, month: MONTHS[mobileDueMonthIdx], year: viewYear, earlierUnpaid })}
                   >
                     {value ? `Due ${MONTHS[mobileDueMonthIdx]} · received ${value} · Edit` : `＋ Record ${MONTHS[mobileDueMonthIdx]} installment · received ${currentMonth}`}
                   </button>
+                  </>
                 )
               ) : (
                 <div className="ledger-mobile-payment-status">
@@ -989,6 +1021,9 @@ export default function CustomerLedger() {
               <p className="ledger-payment-confirm-copy">
                 Record the <strong>{confirmPayment.month} {confirmPayment.year}</strong> installment for <strong>{customer.name}</strong>?
                 <br />Payment received in <strong>{currentMonth}</strong>.
+                {confirmPayment.earlierUnpaid?.length > 0 && (
+                  <><br /><strong>Earlier installments still unpaid: {confirmPayment.earlierUnpaid.join(", ")}.</strong> This mark will leave them outstanding.</>
+                )}
               </p>
               <div style={styles.modalActions}>
                 <button style={styles.cancelBtn} onClick={() => setConfirmPayment(null)}>Cancel</button>
