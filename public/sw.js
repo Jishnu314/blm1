@@ -1,6 +1,18 @@
-const VERSION = "monthly-reports-shell-v1";
+const VERSION = "monthly-reports-shell-v2";
 const basePath = new URL("./", self.location.href).pathname;
-const shell = [basePath, `${basePath}form/`, `${basePath}admin/`, `${basePath}manifest.webmanifest`, `${basePath}app-icon.svg`];
+const shell = [
+  basePath,
+  `${basePath}form/`,
+  `${basePath}admin/`,
+  `${basePath}form.webmanifest`,
+  `${basePath}admin.webmanifest`,
+  `${basePath}manifest.webmanifest`,
+  `${basePath}app-icon.svg`,
+  `${basePath}app-icon-192.png`,
+  `${basePath}app-icon-512.png`,
+  `${basePath}app-icon-maskable.png`,
+  `${basePath}apple-touch-icon.png`,
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(shell)).then(() => self.skipWaiting()));

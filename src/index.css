@@ -61,6 +61,12 @@ body {
   background: var(--wash);
 }
 
+@supports selector(body:has(.pwa-install-dock)) {
+  body:has(.pwa-install-dock) .app {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+}
+
 body {
   font-family: var(--body);
   font-weight: 500;
