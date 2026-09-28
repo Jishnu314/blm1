@@ -67,6 +67,15 @@
 .customer-ledger-page input:focus, .customer-ledger-page select:focus, .customer-ledger-page button:focus-visible { outline: 3px solid rgba(36,87,214,.28); outline-offset: 2px; }
 .customer-ledger-page button { transition: background-color .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease; }
 .customer-ledger-page .ledger-paid-progress { color:#17324f; font-weight:750; text-align:center; font-variant-numeric:tabular-nums; }
+.customer-ledger-page .ledger-scheme-summary { display:flex; align-items:center; flex-wrap:wrap; gap:6px 9px; min-width:150px; }
+.customer-ledger-page .ledger-scheme-name { font-weight:700; color:var(--ledger-ink); }
+.customer-ledger-page .ledger-scheme-summary strong { margin-left:auto; color:#17324f; font-variant-numeric:tabular-nums; }
+.customer-ledger-page .ledger-scheme-summary .ledger-paid-progress { color:#526d88; font-size:11px; }
+.customer-ledger-page .ledger-edit-hint { font-size:9px; opacity:.65; }
+.ledger-mobile-list { display:none; }
+.ledger-payment-confirm-copy { color:#526d88; line-height:1.65; margin:8px 0 20px; }
+.ledger-payment-confirm-copy strong { color:#17324f; }
+.ledger-payment-confirm-button { min-height:40px; padding:0 14px; border:0; border-radius:9px; background:#1467a8; color:#fff; font:inherit; font-weight:700; cursor:pointer; }
 .completed-customer-card { display:block; width:100%; color:inherit; font:inherit; text-align:left; cursor:pointer; }
 .completed-customer-card:hover { border-color:#9ab5d1 !important; box-shadow:0 5px 16px rgba(24,45,78,.09); transform:translateY(-1px); }
 
@@ -91,8 +100,35 @@
   .ledger-stat-card strong { font-size: 22px; }
   .ledger-section-heading { align-items: stretch; flex-direction: column; }
   .ledger-search { width: auto; }
-  .customer-ledger-page table { min-width: 1080px; }
+  .ledger-desktop-table table { min-width: 1080px; }
   .customer-ledger-page [style*="width: 340px"] { width: min(440px, calc(100vw - 28px)) !important; }
+}
+@media (max-width: 820px) {
+  .ledger-desktop-table { display:none; }
+  .ledger-mobile-list { display:grid; gap:10px; margin:0 0 22px; }
+  .ledger-mobile-month-control { display:grid; gap:6px; padding:12px; border:1px solid var(--ledger-border); border-radius:12px; background:#fff; }
+  .ledger-mobile-month-control span { color:var(--ledger-muted); font-size:12px; font-weight:700; }
+  .ledger-mobile-month-control select { width:100%; min-height:46px; border:1px solid var(--ledger-border); border-radius:9px; padding:0 12px; background:#f8fafd; color:var(--ledger-ink); font:inherit; font-size:16px; font-weight:700; }
+  .ledger-mobile-hint { margin:0 2px 2px; color:var(--ledger-muted); font-size:12px; line-height:1.45; }
+  .ledger-mobile-customer { display:grid; gap:9px; min-width:0; padding:13px; border:1px solid var(--ledger-border); border-radius:13px; background:#fff; box-shadow:0 3px 12px rgba(24,45,78,.035); }
+  .ledger-mobile-customer-name { justify-self:start; border:0; padding:0; background:transparent; color:var(--ledger-ink); font:inherit; font-size:16px; font-weight:750; text-align:left; cursor:pointer; }
+  .ledger-mobile-customer-meta { display:flex; flex-wrap:wrap; align-items:center; gap:5px 10px; color:var(--ledger-muted); font-size:12px; }
+  .ledger-mobile-customer-meta strong { margin-left:auto; color:var(--ledger-ink); font-size:14px; font-variant-numeric:tabular-nums; }
+  .ledger-mobile-payment-action { width:100%; min-height:48px; border:1px solid #b8cbe0; border-radius:10px; padding:9px 12px; background:#f2f7fd; color:#155b91; font:inherit; font-size:14px; font-weight:750; text-align:center; cursor:pointer; touch-action:manipulation; }
+  .ledger-mobile-payment-action.is-marked { border-color:#acd2b7; background:#edf7ef; color:#21633c; }
+  .ledger-mobile-payment-status { min-height:42px; display:flex; align-items:center; padding:0 12px; border-radius:9px; background:#f5f7f9; color:#77879a; font-size:13px; }
+  .ledger-mobile-edit-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:6px; }
+  .ledger-mobile-edit-row input { min-width:0; min-height:46px; box-sizing:border-box; border:1px solid var(--ledger-border); border-radius:9px; padding:8px 10px; font:inherit; font-size:16px; }
+  .ledger-mobile-edit-row button { min-height:46px; border:1px solid var(--ledger-border); border-radius:9px; padding:0 10px; background:#f8fafd; color:var(--ledger-ink); font:inherit; font-weight:700; touch-action:manipulation; }
+  .ledger-mobile-edit-row button:last-child { color:#a43d36; }
+  .ledger-mobile-empty { padding:24px 14px; border:1px dashed var(--ledger-border); border-radius:12px; color:var(--ledger-muted); text-align:center; }
+  .ledger-payment-confirm { width:min(440px, calc(100vw - 28px)) !important; padding:20px !important; }
+  .ledger-payment-confirm [style*="modalActions"] { display:flex; flex-wrap:wrap; }
+  .ledger-payment-confirm-button { min-height:48px; flex:1 1 150px; touch-action:manipulation; }
+}
+@media (hover:none) {
+  .customer-ledger-page button { min-height:44px; touch-action:manipulation; }
+  .ledger-mobile-customer-name { min-height:44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .customer-ledger-page *, .customer-ledger-page *::before, .customer-ledger-page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }

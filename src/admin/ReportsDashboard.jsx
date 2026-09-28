@@ -154,6 +154,7 @@ export default function ReportsDashboard() {
         <p><strong>New RD</strong><span>Agents ₹{money(selectedMonth.newRd)} + customers ₹{money(selectedMonth.customerNewRd)} = <b>₹{money(selectedMonth.newRd + selectedMonth.customerNewRd)}</b></span></p>
         <p><strong>New FD</strong><span>Agents ₹{money(selectedMonth.newFd)} + customers ₹{money(selectedMonth.customerNewFd)} = <b>₹{money(selectedMonth.newFd + selectedMonth.customerNewFd)}</b></span></p>
         <p><strong>Renewals</strong><span>Agents ₹{money(selectedMonth.renewal)} + customers ₹{money(selectedMonth.customerRenewal)} = <b>₹{money(selectedMonth.renewal + selectedMonth.customerRenewal)}</b></span></p>
+        <p className="reports-month-grand-total"><strong>Total collected</strong><span>Agents ₹{money(selectedMonth.newRd + selectedMonth.newFd + selectedMonth.renewal)} + customers ₹{money(selectedMonth.customerNewRd + selectedMonth.customerNewFd + selectedMonth.customerRenewal)} = <b>₹{money(selectedMonth.newRd + selectedMonth.newFd + selectedMonth.renewal + selectedMonth.customerNewRd + selectedMonth.customerNewFd + selectedMonth.customerRenewal)}</b></span></p>
       </section>
 
       <section className="reports-panel">

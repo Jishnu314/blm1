@@ -71,6 +71,7 @@ export default function CustomerLedger() {
   const [syncReady, setSyncReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState("loading");
   const [viewYear, setViewYear] = useState(REAL_CURRENT_YEAR);
+  const [mobileDueMonthIdx, setMobileDueMonthIdx] = useState(REAL_CURRENT_MONTH_IDX);
   const [currentMonth, setCurrentMonth] = useState(REAL_CURRENT_MONTH); // "marking as" month, for fixing mistakes
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -91,6 +92,7 @@ export default function CustomerLedger() {
   const [editDraft, setEditDraft] = useState("");
   const [detailCustomer, setDetailCustomer] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmPayment, setConfirmPayment] = useState(null);
   const [monthDetailIdx, setMonthDetailIdx] = useState(null);
 
   useEffect(() => {
@@ -275,9 +277,14 @@ export default function CustomerLedger() {
     return "due";
   }
 
-  // Single click on a due cell: toggle blank <-> marked-paid-this-month
+  // Mark blank cells in one click. Clearing or changing a mark requires editing it.
   function toggleCell(rowId, year, monthIdx) {
     const key = monthKey(year, monthIdx);
+    const existing = customers.find((one) => one.id === rowId)?.paid[key];
+    if (existing) {
+      startManualEdit(rowId, key, existing);
+      return;
+    }
     setCustomers((prev) =>
       prev.map((c) => {
         if (c.id !== rowId) return c;
@@ -296,11 +303,11 @@ export default function CustomerLedger() {
     setEditDraft(current);
   }
 
-  function commitManualEdit(rowId, key) {
+  function commitManualEdit(rowId, key, overrideValue = null) {
     setCustomers((prev) =>
       prev.map((c) => {
         if (c.id !== rowId) return c;
-        const newValue = editDraft.trim();
+        const newValue = overrideValue === null ? editDraft.trim() : overrideValue;
         const changed = newValue !== (c.paid[key] || "");
         return {
           ...c,
@@ -467,17 +474,15 @@ export default function CustomerLedger() {
       </section>
 
       <div className="ledger-section-heading">
-        <div><h2 style={styles.completedTitle}>Ongoing schemes</h2><p>Click a customer name for details. Select a due month, then save to record payment received in {currentMonth}.</p></div>
+        <div><h2 style={styles.completedTitle}>Ongoing schemes</h2><p>Click a due month to confirm payment for that customer. Click a marked month to edit or clear it. Save to apply changes.</p></div>
         <label className="ledger-search"><span className="sr-only">Search ongoing customers</span><span aria-hidden="true">⌕</span><input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search name or scheme" /></label>
       </div>
-      <div style={styles.tableWrap}>
+      <div className="ledger-desktop-table" style={styles.tableWrap}>
         <table className="ledger-table" style={styles.table}>
           <thead>
             <tr>
               <th style={{ ...styles.th, ...styles.stickyCol, textAlign: "left" }}>Name</th>
-              <th style={{ ...styles.th, textAlign: "left" }}>Scheme</th>
-              <th style={styles.th}>Amount</th>
-              <th style={styles.th}>Paid</th>
+              <th style={{ ...styles.th, textAlign: "left" }}>Scheme · amount · paid</th>
               {MONTHS.map((m, idx) => (
                 <th
                   key={m}
@@ -498,7 +503,7 @@ export default function CustomerLedger() {
           <tbody>
             {visibleCustomers.length === 0 && (
               <tr>
-                <td colSpan={18} style={styles.emptyRow}>
+                <td colSpan={16} style={styles.emptyRow}>
                   {ongoingCustomers.length === 0
                     ? "No customers yet. Add one to start tracking payments."
                     : searchTerm ? "No customers match your search. Try another name or scheme." : "No ongoing customers — everyone's completed or claimed."}
@@ -509,25 +514,23 @@ export default function CustomerLedger() {
               <tr key={c.id}>
                 <td
                   style={{ ...styles.td, ...styles.stickyCol, ...styles.nameCell, textAlign: "left", fontWeight: 600 }}
-                  title={`Scheme: ${c.schemeName} (${c.schemeType}) · Period: ${periodLabel(c.periodYears)} · Joined: ${fmtDate(c.joinedDate)} · Expires: ${fmtDate(c.expiryDate)}`}
+                  title={`Click ${c.name} for details`}
                   onClick={() => setDetailCustomer(c)}
                 >
-                  {c.name}
+                  <span>{c.name}</span>
                 </td>
                 <td style={{ ...styles.td, textAlign: "left" }}>
-                  <div>{c.schemeName}</div>
-                  <span style={{ ...styles.badge, ...(c.schemeType === "FD" ? styles.badgeFD : styles.badgeRD) }}>
-                    {c.schemeType === "RD" ? paymentModeLabel(c.paymentMode) : "Fixed deposit"}
-                  </span>
-                  {c.claimed && (
-                    <span style={{ ...styles.badge, ...styles.badgeDone }}>
-                      {c.schemeType === "RD" ? "Completed" : "Claimed"}
+                  <div className="ledger-scheme-summary">
+                    <span className="ledger-scheme-name">{c.schemeName}</span>
+                    <span style={{ ...styles.badge, ...(c.schemeType === "FD" ? styles.badgeFD : styles.badgeRD) }}>
+                      {c.schemeType === "RD" ? paymentModeLabel(c.paymentMode) : "Fixed deposit"}
                     </span>
-                  )}
-                </td>
-                <td style={styles.td}>{fmt(c.amount)}{c.schemeType === "RD" ? "/mo" : ""}</td>
-                <td className="ledger-paid-progress" style={styles.td} title={c.schemeType === "RD" ? `${paymentProgress(c).paid} of ${paymentProgress(c).term} months paid` : "Fixed deposit"}>
-                  {c.schemeType === "RD" ? `${paymentProgress(c).paid}/${paymentProgress(c).term}` : "—"}
+                    <strong>{fmt(c.amount)}{c.schemeType === "RD" ? "/mo" : ""}</strong>
+                    <span className="ledger-paid-progress" title={c.schemeType === "RD" ? `${paymentProgress(c).paid} of ${paymentProgress(c).term} months paid` : "Fixed deposit"}>
+                      {c.schemeType === "RD" ? `${paymentProgress(c).paid}/${paymentProgress(c).term} paid` : "—"}
+                    </span>
+                    {c.claimed && <span style={{ ...styles.badge, ...styles.badgeDone }}>{c.schemeType === "RD" ? "Completed" : "Claimed"}</span>}
+                  </div>
                 </td>
 
                 {c.schemeType === "FD" ? (
@@ -573,12 +576,16 @@ export default function CustomerLedger() {
                           ...(viewYear === REAL_CURRENT_YEAR && idx === REAL_CURRENT_MONTH_IDX ? styles.currentMonthCol : {}),
                           position: "relative",
                         }}
-                        onClick={() => !isEditing && toggleCell(c.id, viewYear, idx)}
+                        onClick={() => {
+                          if (isEditing) return;
+                          if (value) toggleCell(c.id, viewYear, idx);
+                          else setConfirmPayment({ customerId: c.id, key, month: m, year: viewYear });
+                        }}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
-                          startManualEdit(c.id, key, value);
+                          if (value) startManualEdit(c.id, key, value);
                         }}
-                        title={c.edited[key] ? "Manually edited" : ""}
+                        title={c.edited[key] ? "Manually edited" : value ? "Click to edit or clear this mark" : `Confirm payment for ${c.name}`}
                       >
                         {isEditing ? (
                           <input
@@ -618,8 +625,6 @@ export default function CustomerLedger() {
               <tr>
                 <td style={{ ...styles.tf, ...styles.stickyCol, textAlign: "left" }}>Total</td>
                 <td style={styles.tf}></td>
-                <td style={styles.tf}></td>
-                <td style={styles.tf}></td>
                 {MONTHS.map((m, idx) => {
                   const s = newSignupsForMonthIdx(idx);
                   return (
@@ -640,6 +645,74 @@ export default function CustomerLedger() {
           )}
         </table>
       </div>
+
+      <section className="ledger-mobile-list" aria-label="Customer payment marking">
+        <label className="ledger-mobile-month-control">
+          <span>Due month to update</span>
+          <select value={mobileDueMonthIdx} onChange={(event) => setMobileDueMonthIdx(Number(event.target.value))}>
+            {MONTHS.map((month, idx) => <option key={month} value={idx}>{month} {viewYear}</option>)}
+          </select>
+        </label>
+        <p className="ledger-mobile-hint">Tap a customer’s payment button to mark, edit, or remove it for this due month.</p>
+        {visibleCustomers.length === 0 ? (
+          <div className="ledger-mobile-empty">{searchTerm ? "No customers match your search." : "No ongoing customers."}</div>
+        ) : visibleCustomers.map((c) => {
+          const key = monthKey(viewYear, mobileDueMonthIdx);
+          const status = dueStatus(c, viewYear, mobileDueMonthIdx);
+          const value = c.paid[key];
+          const isEditing = editingCell === `${c.id}-${key}`;
+          return (
+            <article className="ledger-mobile-customer" key={c.id}>
+              <button type="button" className="ledger-mobile-customer-name" onClick={() => setDetailCustomer(c)}>{c.name}</button>
+              <div className="ledger-mobile-customer-meta">
+                <span>{c.schemeName} · {c.schemeType === "RD" ? paymentModeLabel(c.paymentMode) : "Fixed deposit"}</span>
+                <strong>{fmt(c.amount)}{c.schemeType === "RD" ? "/mo" : ""}</strong>
+                {c.schemeType === "RD" && <span>{paymentProgress(c).paid}/{paymentProgress(c).term} paid</span>}
+              </div>
+              {c.schemeType === "FD" ? (
+                <button type="button" className={`ledger-mobile-payment-action${c.claimed ? " is-marked" : ""}`} onClick={() => toggleClaimed(c.id)}>
+                  {c.claimed ? `Claimed ${fmtDate(c.claimedDate)}` : "Mark deposit claimed"}
+                </button>
+              ) : status === "due" ? (
+                isEditing ? (
+                  <div className="ledger-mobile-edit-row">
+                    <input
+                      autoFocus
+                      aria-label={`Payment received month for ${c.name}`}
+                      value={editDraft}
+                      onChange={(event) => setEditDraft(event.target.value)}
+                      placeholder="Received month (e.g. Sep)"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          commitManualEdit(c.id, key);
+                        }
+                        if (event.key === "Escape") setEditingCell(null);
+                      }}
+                    />
+                    <button type="button" onClick={() => commitManualEdit(c.id, key)}>Done</button>
+                    <button type="button" onClick={() => commitManualEdit(c.id, key, "")}>Clear</button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className={`ledger-mobile-payment-action${value ? " is-marked" : ""}`}
+                    onClick={() => value
+                      ? startManualEdit(c.id, key, value)
+                      : setConfirmPayment({ customerId: c.id, key, month: MONTHS[mobileDueMonthIdx], year: viewYear })}
+                  >
+                    {value ? `Paid in ${value} · Edit or remove` : `＋ Mark ${MONTHS[mobileDueMonthIdx]} paid`}
+                  </button>
+                )
+              ) : (
+                <div className="ledger-mobile-payment-status">
+                  {status === "skip" ? "Not due this month" : status === "before-join" ? "Before joining" : "Scheme period ended"}
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </section>
 
       {customers.some((c) => c.claimed) && (
         <div style={styles.completedSection}>
@@ -888,6 +961,32 @@ export default function CustomerLedger() {
           </div>
         </div>
       )}
+
+      {confirmPayment && (() => {
+        const customer = customers.find((one) => one.id === confirmPayment.customerId);
+        if (!customer) return null;
+        return (
+          <div style={styles.overlay} onClick={() => setConfirmPayment(null)}>
+            <div className="ledger-payment-confirm" style={styles.modal} role="dialog" aria-modal="true" aria-labelledby="ledger-payment-confirm-title" onClick={(e) => e.stopPropagation()}>
+              <h2 id="ledger-payment-confirm-title" style={styles.modalTitle}>Confirm payment</h2>
+              <p className="ledger-payment-confirm-copy">
+                Mark <strong>{customer.name}</strong> paid for <strong>{confirmPayment.month} {confirmPayment.year}</strong>?
+                <br />Payment received in <strong>{currentMonth}</strong>.
+              </p>
+              <div style={styles.modalActions}>
+                <button style={styles.cancelBtn} onClick={() => setConfirmPayment(null)}>Cancel</button>
+                <button
+                  className="ledger-payment-confirm-button"
+                  onClick={() => {
+                    toggleCell(customer.id, confirmPayment.year, MONTHS.indexOf(confirmPayment.month));
+                    setConfirmPayment(null);
+                  }}
+                >Confirm payment</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {monthDetailIdx !== null && (
         <div style={styles.overlay} onClick={() => setMonthDetailIdx(null)}>
