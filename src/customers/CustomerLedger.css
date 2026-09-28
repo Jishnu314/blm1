@@ -52,6 +52,8 @@
 .ledger-section-heading { display: flex; justify-content: space-between; align-items: end; gap: 14px; margin: 0 0 12px; }
 .ledger-section-heading h2 { color: var(--ledger-ink); font-size: 19px !important; margin: 0 0 3px !important; }
 .ledger-section-heading p { margin: 0; color: var(--ledger-muted); font-size: 12px; line-height: 1.5; }
+.ledger-details-toggle { min-height:42px; flex:0 0 auto; border:1px solid var(--ledger-border); border-radius:10px; padding:0 13px; background:#fff; color:var(--ledger-blue); font:inherit; font-size:12px; font-weight:750; cursor:pointer; touch-action:manipulation; }
+.ledger-details-toggle:hover { background:#f2f7fd; }
 .ledger-search { display: flex; align-items: center; gap: 9px; background: #fff; border: 1px solid var(--ledger-border); border-radius: 10px; padding: 0 12px; width: min(290px, 100%); height: 42px; color: #738198; }
 .ledger-search > span:not(.sr-only) { font-size: 22px; line-height: 1; }
 .ledger-search input { width: 100%; border: 0; outline: 0; color: var(--ledger-ink); font: inherit; font-size: 13px; background: transparent; }
@@ -105,7 +107,10 @@
 }
 @media (max-width: 820px) {
   .ledger-desktop-table { display:none; }
+  .ledger-section-heading { align-items:stretch; flex-direction:column; }
+  .ledger-search { width:auto; }
   .ledger-mobile-list { display:grid; gap:10px; margin:0 0 22px; }
+  .ledger-mobile-month-picks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
   .ledger-mobile-month-control { display:grid; gap:6px; padding:12px; border:1px solid var(--ledger-border); border-radius:12px; background:#fff; }
   .ledger-mobile-month-control span { color:var(--ledger-muted); font-size:12px; font-weight:700; }
   .ledger-mobile-month-control select { width:100%; min-height:46px; border:1px solid var(--ledger-border); border-radius:9px; padding:0 12px; background:#f8fafd; color:var(--ledger-ink); font:inherit; font-size:16px; font-weight:700; }
@@ -114,7 +119,7 @@
   .ledger-mobile-customer-name { justify-self:start; border:0; padding:0; background:transparent; color:var(--ledger-ink); font:inherit; font-size:16px; font-weight:750; text-align:left; cursor:pointer; }
   .ledger-mobile-customer-meta { display:flex; flex-wrap:wrap; align-items:center; gap:5px 10px; color:var(--ledger-muted); font-size:12px; }
   .ledger-mobile-customer-meta strong { margin-left:auto; color:var(--ledger-ink); font-size:14px; font-variant-numeric:tabular-nums; }
-  .ledger-mobile-payment-action { width:100%; min-height:48px; border:1px solid #b8cbe0; border-radius:10px; padding:9px 12px; background:#f2f7fd; color:#155b91; font:inherit; font-size:14px; font-weight:750; text-align:center; cursor:pointer; touch-action:manipulation; }
+  .ledger-mobile-payment-action { width:100%; min-height:48px; border:1px solid #b8cbe0; border-radius:10px; padding:9px 12px; background:#f2f7fd; color:#155b91; font:inherit; font-size:14px; font-weight:750; line-height:1.35; text-align:center; cursor:pointer; touch-action:manipulation; }
   .ledger-mobile-payment-action.is-marked { border-color:#acd2b7; background:#edf7ef; color:#21633c; }
   .ledger-mobile-payment-status { min-height:42px; display:flex; align-items:center; padding:0 12px; border-radius:9px; background:#f5f7f9; color:#77879a; font-size:13px; }
   .ledger-mobile-edit-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:6px; }

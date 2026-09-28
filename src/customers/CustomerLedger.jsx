@@ -72,6 +72,7 @@ export default function CustomerLedger() {
   const [syncStatus, setSyncStatus] = useState("loading");
   const [viewYear, setViewYear] = useState(REAL_CURRENT_YEAR);
   const [mobileDueMonthIdx, setMobileDueMonthIdx] = useState(REAL_CURRENT_MONTH_IDX);
+  const [showSchemeDetails, setShowSchemeDetails] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(REAL_CURRENT_MONTH); // "marking as" month, for fixing mistakes
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -475,6 +476,14 @@ export default function CustomerLedger() {
 
       <div className="ledger-section-heading">
         <div><h2 style={styles.completedTitle}>Ongoing schemes</h2><p>Click a due month to confirm payment for that customer. Click a marked month to edit or clear it. Save to apply changes.</p></div>
+        <button
+          type="button"
+          className="ledger-details-toggle"
+          aria-expanded={showSchemeDetails}
+          onClick={() => setShowSchemeDetails((visible) => !visible)}
+        >
+          {showSchemeDetails ? "Hide scheme details" : "Show scheme details"}
+        </button>
         <label className="ledger-search"><span className="sr-only">Search ongoing customers</span><span aria-hidden="true">⌕</span><input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search name or scheme" /></label>
       </div>
       <div className="ledger-desktop-table" style={styles.tableWrap}>
@@ -482,7 +491,7 @@ export default function CustomerLedger() {
           <thead>
             <tr>
               <th style={{ ...styles.th, ...styles.stickyCol, textAlign: "left" }}>Name</th>
-              <th style={{ ...styles.th, textAlign: "left" }}>Scheme · amount · paid</th>
+              {showSchemeDetails && <th style={{ ...styles.th, textAlign: "left" }}>Scheme · amount · paid</th>}
               {MONTHS.map((m, idx) => (
                 <th
                   key={m}
@@ -503,7 +512,7 @@ export default function CustomerLedger() {
           <tbody>
             {visibleCustomers.length === 0 && (
               <tr>
-                <td colSpan={16} style={styles.emptyRow}>
+                <td colSpan={showSchemeDetails ? 16 : 15} style={styles.emptyRow}>
                   {ongoingCustomers.length === 0
                     ? "No customers yet. Add one to start tracking payments."
                     : searchTerm ? "No customers match your search. Try another name or scheme." : "No ongoing customers — everyone's completed or claimed."}
@@ -519,7 +528,7 @@ export default function CustomerLedger() {
                 >
                   <span>{c.name}</span>
                 </td>
-                <td style={{ ...styles.td, textAlign: "left" }}>
+                {showSchemeDetails && <td style={{ ...styles.td, textAlign: "left" }}>
                   <div className="ledger-scheme-summary">
                     <span className="ledger-scheme-name">{c.schemeName}</span>
                     <span style={{ ...styles.badge, ...(c.schemeType === "FD" ? styles.badgeFD : styles.badgeRD) }}>
@@ -531,7 +540,7 @@ export default function CustomerLedger() {
                     </span>
                     {c.claimed && <span style={{ ...styles.badge, ...styles.badgeDone }}>{c.schemeType === "RD" ? "Completed" : "Claimed"}</span>}
                   </div>
-                </td>
+                </td>}
 
                 {c.schemeType === "FD" ? (
                   <td colSpan={12} style={styles.fdCellOuter}>
@@ -624,7 +633,7 @@ export default function CustomerLedger() {
             <tfoot>
               <tr>
                 <td style={{ ...styles.tf, ...styles.stickyCol, textAlign: "left" }}>Total</td>
-                <td style={styles.tf}></td>
+                {showSchemeDetails && <td style={styles.tf}></td>}
                 {MONTHS.map((m, idx) => {
                   const s = newSignupsForMonthIdx(idx);
                   return (
@@ -647,13 +656,21 @@ export default function CustomerLedger() {
       </div>
 
       <section className="ledger-mobile-list" aria-label="Customer payment marking">
-        <label className="ledger-mobile-month-control">
-          <span>Due month to update</span>
-          <select value={mobileDueMonthIdx} onChange={(event) => setMobileDueMonthIdx(Number(event.target.value))}>
-            {MONTHS.map((month, idx) => <option key={month} value={idx}>{month} {viewYear}</option>)}
-          </select>
-        </label>
-        <p className="ledger-mobile-hint">Tap a customer’s payment button to mark, edit, or remove it for this due month.</p>
+        <div className="ledger-mobile-month-picks">
+          <label className="ledger-mobile-month-control">
+            <span>Installment due in</span>
+            <select aria-label="Installment due month" value={mobileDueMonthIdx} onChange={(event) => setMobileDueMonthIdx(Number(event.target.value))}>
+              {MONTHS.map((month, idx) => <option key={month} value={idx}>{month} {viewYear}</option>)}
+            </select>
+          </label>
+          <label className="ledger-mobile-month-control">
+            <span>Payment received in</span>
+            <select aria-label="Payment received in month" value={currentMonth} onChange={(event) => setCurrentMonth(event.target.value)}>
+              {MONTHS.map((month) => <option key={month} value={month}>{month}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="ledger-mobile-hint">Choose when the installment was due and when the money was received. A late payment fills only the due month you select.</p>
         {visibleCustomers.length === 0 ? (
           <div className="ledger-mobile-empty">{searchTerm ? "No customers match your search." : "No ongoing customers."}</div>
         ) : visibleCustomers.map((c) => {
@@ -664,11 +681,11 @@ export default function CustomerLedger() {
           return (
             <article className="ledger-mobile-customer" key={c.id}>
               <button type="button" className="ledger-mobile-customer-name" onClick={() => setDetailCustomer(c)}>{c.name}</button>
-              <div className="ledger-mobile-customer-meta">
+              {showSchemeDetails && <div className="ledger-mobile-customer-meta">
                 <span>{c.schemeName} · {c.schemeType === "RD" ? paymentModeLabel(c.paymentMode) : "Fixed deposit"}</span>
                 <strong>{fmt(c.amount)}{c.schemeType === "RD" ? "/mo" : ""}</strong>
                 {c.schemeType === "RD" && <span>{paymentProgress(c).paid}/{paymentProgress(c).term} paid</span>}
-              </div>
+              </div>}
               {c.schemeType === "FD" ? (
                 <button type="button" className={`ledger-mobile-payment-action${c.claimed ? " is-marked" : ""}`} onClick={() => toggleClaimed(c.id)}>
                   {c.claimed ? `Claimed ${fmtDate(c.claimedDate)}` : "Mark deposit claimed"}
@@ -701,7 +718,7 @@ export default function CustomerLedger() {
                       ? startManualEdit(c.id, key, value)
                       : setConfirmPayment({ customerId: c.id, key, month: MONTHS[mobileDueMonthIdx], year: viewYear })}
                   >
-                    {value ? `Paid in ${value} · Edit or remove` : `＋ Mark ${MONTHS[mobileDueMonthIdx]} paid`}
+                    {value ? `Due ${MONTHS[mobileDueMonthIdx]} · received ${value} · Edit` : `＋ Record ${MONTHS[mobileDueMonthIdx]} installment · received ${currentMonth}`}
                   </button>
                 )
               ) : (
@@ -970,7 +987,7 @@ export default function CustomerLedger() {
             <div className="ledger-payment-confirm" style={styles.modal} role="dialog" aria-modal="true" aria-labelledby="ledger-payment-confirm-title" onClick={(e) => e.stopPropagation()}>
               <h2 id="ledger-payment-confirm-title" style={styles.modalTitle}>Confirm payment</h2>
               <p className="ledger-payment-confirm-copy">
-                Mark <strong>{customer.name}</strong> paid for <strong>{confirmPayment.month} {confirmPayment.year}</strong>?
+                Record the <strong>{confirmPayment.month} {confirmPayment.year}</strong> installment for <strong>{customer.name}</strong>?
                 <br />Payment received in <strong>{currentMonth}</strong>.
               </p>
               <div style={styles.modalActions}>
