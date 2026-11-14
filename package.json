@@ -12,7 +12,8 @@
     "demo": "node scripts/demo.mjs",
     "demo:reset": "npm --prefix server run reset",
     "smoke": "node scripts/smoke.mjs",
-    "backup": "node scripts/backup.mjs"
+    "backup": "node scripts/backup.mjs",
+    "restore-sql": "node scripts/restore-sql.mjs"
   },
   "dependencies": {
     "react": "18.3.1",
