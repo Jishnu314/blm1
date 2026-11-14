@@ -16,8 +16,14 @@ import react from "@vitejs/plugin-react";
 // nothing else. Renaming the folder (say to `office-7k2`, changing the one line
 // below to match) is still a reasonable thing to do — it is just no longer the part
 // doing the work.
+// Local `vite` / `npm run demo` always talks to the SQLite API on 8787.
+// A leftover VITE_API_URL in `.env` must not send this PC at the live database.
+// Production builds and `USE_REMOTE_API=1` still read those variables.
+const localDemo = process.env.USE_REMOTE_API !== "1" && !process.env.GITHUB_ACTIONS;
+
 export default defineConfig({
   plugins: [react()],
+  envPrefix: localDemo ? "VITE_KEEP_" : "VITE_",
   // GitHub Pages serves this repository under /blm1/. Locally, keep relative
   // URLs so the same build also works from the project root.
   base: process.env.GITHUB_ACTIONS

@@ -18,6 +18,7 @@ import {
   replaceReport,
   restoreReport,
 } from "../services/reports.js";
+import { readSettings } from "../services/settings.js";
 
 export const reports = express.Router();
 
@@ -47,6 +48,18 @@ reports.post(
   sending,
   asyncRoute(async (req, res) => {
     const input = newReport(req.body?.report);
+    const held = await readSettings();
+    let roster = {};
+    try { roster = JSON.parse(held.agentIds || "{}"); } catch {}
+    const allowed = roster[input.nameKey];
+    const ids = Array.isArray(allowed) ? allowed : allowed ? [allowed] : [];
+    if (ids.length === 1 && !input.agentId) input.agentId = ids[0];
+    if (ids.length && !ids.includes(input.agentId)) {
+      throw new ApiError("agent_id_required", 400, "Choose the agent ID assigned to this name.", "agentId");
+    }
+    if (!ids.length && input.agentId) {
+      throw new ApiError("unknown_agent_id", 400, "That agent ID is not assigned to this name.", "agentId");
+    }
     const { report, created } = await insertReport(input);
     // 201 when this call made the row, 200 when the id was already stored. The phone
     // uses it to know whether its retry was the one that landed.

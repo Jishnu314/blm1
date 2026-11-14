@@ -1,7 +1,6 @@
-// Admin sign-in to the Supabase Edge Function. The password is never placed in the
-// published bundle. Supabase returns a 30-day bearer session;
-// protected API routes reject requests without it. The local Express server remains
-// supported for development and uses its same-origin cookie session.
+// Admin sign-in. The password is never placed in the published bundle.
+// Local demo and production both return a 30-day bearer token; protected routes
+// reject requests without it.
 
 import { apiGet, apiSend, ApiError } from "./api.js";
 
@@ -35,8 +34,6 @@ export async function whoAmI() {
 export async function signIn(password) {
   try {
     const data = await apiSend("POST", "/api/admin/login", { password });
-    // Production Edge Function sessions use a bearer token. The older local
-    // Express server still uses its same-origin HttpOnly cookie.
     if (data?.token) {
       try {
         localStorage.setItem(SESSION_KEY, data.token);

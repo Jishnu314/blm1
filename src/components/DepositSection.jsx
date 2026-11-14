@@ -37,7 +37,13 @@ export default function DepositSection({
       {rows.map((row, index) => (
         <div className="deposit" key={row.id}>
           <div className="deposit-top">
-            <div className={errors[row.id] ? "well plate is-small has-error" : "well plate is-small"}>
+            <div
+              className={
+                errors[row.id]
+                  ? "well plate is-small has-error"
+                  : "well plate is-small"
+              }
+            >
               <span className="rupee" aria-hidden="true">
                 ₹
               </span>
@@ -67,8 +73,10 @@ export default function DepositSection({
             <input
               className="scheme-input"
               value={row.scheme}
-              onChange={(event) => onChangeRow(row.id, { scheme: event.target.value })}
-              placeholder="Scheme name"
+              onChange={(event) =>
+                onChangeRow(row.id, { scheme: event.target.value })
+              }
+              placeholder="Scheme name "
               autoComplete="off"
               /* The register takes 80 characters. The phone stops at 80 rather
                  than letting the 81st be typed and then refusing the report it

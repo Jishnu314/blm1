@@ -1,31 +1,42 @@
-# Local Express helper
+# Local demo API (Express + SQLite)
 
-Production uses the Supabase Edge Function in `../supabase/functions/api/`.
-`server/` is the previous Express API, retained for local development and for the
-one-time Google Sheet import script. It is not deployed as a hosted server.
+This folder is the **on-this-PC** API. It uses a SQLite file, not Postgres and not
+the live Supabase project.
 
-## Run the older API locally
+Production is documented later in [`../PUBLISH.md`](../PUBLISH.md). Do not point
+this helper at that database.
 
-1. Copy `.env.example` to `.env` and set `DATABASE_URL`. This can point to local
-   PostgreSQL or the Supabase Session Pooler.
-2. In this folder, run `npm install`, then `npm run migrate`.
-3. Start the local API with `npm run dev`. The frontend's Vite proxy sends local
-   `/api` calls to port 8787.
-4. In the repository root, run `npm install` and `npm run dev` in a second terminal.
-   Open `http://localhost:5173/form/` or `/admin/`.
+## Run
 
-The local Express API still uses its legacy schema and same-origin cookie login. The
-production Edge Function instead uses the schema in `../supabase/migrations/` and a
-tab-scoped bearer session.
+From the repository root:
 
-## Import old reports from the Google Sheet
+```
+npm install
+npm --prefix server install
+npm run demo
+```
 
-Set `DATABASE_URL` and `SHEET_WEBHOOK_URL` in the private `.env`, then run
-`npm run import-sheet`. It inserts report IDs that are not already in PostgreSQL and
-can be run again safely. For production migration, use the Supabase Session Pooler
-connection string so the report rows land in the same database used by the Edge
-Function.
+Or two terminals:
 
-## Production
+```
+npm run dev          # in server/
+npm run dev          # in the repository root
+```
 
-Follow [`../PUBLISH.md`](../PUBLISH.md) to deploy the Edge Function and GitHub Pages.
+- API: http://localhost:8787/api/health — should say `"engine":"sqlite"`, `"mode":"demo"`
+- Form: http://localhost:5173/form/
+- Admin: http://localhost:5173/admin/ — password `demo-admin-10`
+
+The file is `server/data/demo.sqlite` (gitignored). Reset it with
+`npm run demo:reset` from the repository root, or `npm run reset` in this folder.
+
+## Optional `.env`
+
+Copy `.env.example` only if you need to change the port, SQLite path, or demo
+password. `DATABASE_URL` is ignored on purpose so a leftover Postgres URL cannot
+open live data.
+
+## Optional Google Sheet copy
+
+Leave `SHEET_WEBHOOK_URL` empty for demo. Import from a sheet (`npm run import-sheet`)
+is only for moving old rows into this local file, never into production.

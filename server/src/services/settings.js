@@ -11,7 +11,9 @@
 // to fall back on.
 
 import { query, tx } from "../db.js";
+import { ApiError } from "../lib/http.js";
 import { isMonthKey } from "../lib/month.js";
+import { nowIso } from "../lib/time.js";
 import { enqueue, kick } from "./mirror.js";
 
 /** The same words the sheet accepts, so a tab set up before this still reads right. */
@@ -61,6 +63,7 @@ const KEYS = {
   // Kept as the JSON string it arrived as; whoever draws the board parses it, and an
   // unreadable list is an empty board rather than a crash.
   boardPlayers: { fallback: "[]", read: (text) => (text === "" ? "[]" : text) },
+  agentIds: { fallback: "{}", read: (text) => (text === "" ? "{}" : text) },
 };
 
 /** Anything, as the one text column. null and undefined are both "nothing". */
@@ -96,14 +99,27 @@ export async function readSettings() {
  */
 export async function writeSettings(patch) {
   const settings = await tx(async (client) => {
+    if (patch.agentIds !== undefined) {
+      const held = await client.query(`select value from settings where key = 'agentIds' for update`);
+      let previous = {};
+      try { previous = JSON.parse(held.rows[0]?.value || "{}"); } catch {}
+      const next = JSON.parse(patch.agentIds);
+      for (const [name, heldIds] of Object.entries(previous)) {
+        const oldIds = Array.isArray(heldIds) ? heldIds : heldIds ? [heldIds] : [];
+        const newIds = Array.isArray(next[name]) ? next[name] : next[name] ? [next[name]] : [];
+        if (oldIds.some((id, index) => newIds[index] !== id) || newIds.length < oldIds.length) {
+          throw new ApiError("immutable_agent_id", 409, "An applied agent ID cannot be changed or removed.");
+        }
+      }
+    }
     for (const [key, value] of Object.entries(patch)) {
       await client.query(
-        `insert into settings (key, value)
-              values ($1, $2)
+        `insert into settings (key, value, updated_at)
+              values ($1, $2, $3)
          on conflict (key) do update
                  set value = excluded.value,
-                     updated_at = now()`,
-        [key, store(value)]
+                     updated_at = excluded.updated_at`,
+        [key, store(value), nowIso()]
       );
     }
 

@@ -79,6 +79,7 @@ export const DEFAULTS = {
   boardOn: BOARD_ON,
   boardTitle: BOARD_TITLE,
   boardPlayers: BOARD_PLAYERS,
+  agentIds: "{}",
 };
 
 /**
@@ -186,6 +187,7 @@ function absorb(given, here) {
     // Kept as the string it arrived as; parsePlayers reads it wherever it is used,
     // and an unreadable list is an empty board rather than a crash.
     ...(said("boardPlayers") ? { boardPlayers: String(sent.boardPlayers || "[]") } : {}),
+    ...(said("agentIds") ? { agentIds: String(sent.agentIds || "{}") } : {}),
   };
 }
 
@@ -266,7 +268,11 @@ export async function saveSettings(patch) {
       ok: true,
       synced: false,
       refused: false,
-      note: "",
+      // Keep the actual transport/server error. The admin screen can then tell a
+      // real network failure from an HTTP error such as a backend migration issue.
+      note: String(problem?.message || "The server could not be reached."),
+      code: String(problem?.code || "network"),
+      status: Number(problem?.status) || 0,
       field: "",
       settings: next,
       unauthorised: isUnauthorised(problem),
@@ -291,4 +297,3 @@ export async function fetchSettings() {
     return null;
   }
 }
-

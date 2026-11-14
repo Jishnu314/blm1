@@ -1,81 +1,118 @@
-// The one connection to Postgres, and the three ways anything here talks to it.
-//
-// A pool rather than a connection because a web server has many requests in flight
-// and one connection would serialise them all. It is kept small on purpose: a free
-// Postgres allows very few connections, and a pool that opens more than the
-// database will grant fails in a way that looks like the database being down.
-//
-// migrate() runs schema.sql, which is written to be safe to re-run, so it happens
-// on every boot and nobody has to remember a deploy step. Running this file
-// directly (`npm run migrate`) does the same thing and then stops.
+// SQLite register for local demo and tests. One file, no Postgres.
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import pg from "pg";
+import Database from "better-sqlite3";
 import { config } from "./config.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const inTx = new AsyncLocalStorage();
 
-export const pool = new pg.Pool({
-  connectionString: config.databaseUrl,
-  ssl: config.ssl,
-  max: 5,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
-});
-
-// A pool that loses a connection while it is idle emits this instead of throwing
-// somewhere unhelpful. It is not fatal — the next query opens a fresh connection.
-pool.on("error", (problem) => {
-  console.error("Postgres connection dropped:", problem.message);
-});
-
-/** One statement. Returns pg's own result, so `.rows` and `.rowCount` are there. */
-export function query(text, params) {
-  return pool.query(text, params);
+function adapt(sql, params = []) {
+  const order = [];
+  const text = String(sql)
+    .replace(/\$(\d+)(?:::[\w[\]]+)?/g, (_, n) => {
+      order.push(Number(n) - 1);
+      return "?";
+    })
+    .replace(/\s+for update\b/gi, "");
+  return { text, values: order.length ? order.map((index) => params[index]) : params || [] };
 }
 
-/**
- * Several statements, all or nothing.
- *
- * The work gets the client, not the pool, so everything inside really is one
- * transaction. A rollback that itself fails is swallowed: the original problem is
- * the one worth reporting, and the client is being thrown away anyway.
- */
-export async function tx(work) {
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    const result = await work(client);
-    await client.query("commit");
-    return result;
-  } catch (problem) {
-    try {
-      await client.query("rollback");
-    } catch {
-      // Nothing useful to do about it.
-    }
-    throw problem;
-  } finally {
-    client.release();
+let db = null;
+let lock = Promise.resolve();
+
+function exclusive(work) {
+  const run = lock.then(work, work);
+  lock = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+export function openDb() {
+  if (db) return db;
+  fs.mkdirSync(path.dirname(config.sqlitePath), { recursive: true });
+  db = new Database(config.sqlitePath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+  return db;
+}
+
+function isRead(sql) {
+  const text = sql.trim();
+  return /^\s*(select|with|pragma)\b/i.test(text) || /\breturning\b/i.test(text);
+}
+
+function runQuery(sql, params = []) {
+  const database = openDb();
+  const { text, values } = adapt(sql, params);
+  const stmt = database.prepare(text);
+  if (isRead(text)) {
+    const rows = stmt.all(...values);
+    return { rows, rowCount: rows.length };
   }
+  const info = stmt.run(...values);
+  return { rows: [], rowCount: info.changes, lastInsertRowid: Number(info.lastInsertRowid) };
 }
 
-/** Make sure every table exists. Safe to call as often as you like. */
+export function query(sql, params = []) {
+  if (inTx.getStore()) return Promise.resolve(runQuery(sql, params));
+  return exclusive(() => runQuery(sql, params));
+}
+
+query.query = query;
+
+function runner() {
+  return {
+    query: (sql, params = []) => Promise.resolve(runQuery(sql, params)),
+  };
+}
+
+export function tx(work) {
+  const body = () =>
+    inTx.run(true, async () => {
+      const database = openDb();
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        const result = await work(runner());
+        database.exec("COMMIT");
+        return result;
+      } catch (problem) {
+        try {
+          database.exec("ROLLBACK");
+        } catch {
+          // Original error matters more.
+        }
+        throw problem;
+      }
+    });
+
+  if (inTx.getStore()) return body();
+  return exclusive(body);
+}
+
 export async function migrate() {
+  const database = openDb();
   const sql = fs.readFileSync(path.join(here, "schema.sql"), "utf8");
-  // No parameters, so pg sends this as one simple query and Postgres accepts the
-  // whole file at once.
-  await pool.query(sql);
+  database.exec(sql);
 }
 
-// `npm run migrate` — the tables, then out.
+export function closeDb() {
+  if (!db) return;
+  db.close();
+  db = null;
+}
+
+export const pool = { end: async () => closeDb() };
+
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   migrate()
-    .then(() => {
-      console.log("Tables are in place.");
-      return pool.end();
+    .then(async () => {
+      const { seedIfEmpty } = await import("./seed.js");
+      seedIfEmpty();
+      console.log(`Tables are in place at ${config.sqlitePath}`);
+      closeDb();
     })
     .catch((problem) => {
       console.error("Could not set up the tables:", problem.message);

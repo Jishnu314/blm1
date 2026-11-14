@@ -95,6 +95,7 @@ const SETTING_KEYS = [
   "boardOn",
   "boardTitle",
   "boardPlayers",
+  "agentIds",
 ];
 
 /**
@@ -114,6 +115,7 @@ const REPORT_HEADINGS = [
   "Month",
   "Month label",
   "Name",
+  "Agent ID",
   "Renewal",
   "New RDs",
   "RD total",
@@ -151,6 +153,7 @@ function doPost(e) {
   try {
     if (action === "saveSettings") {
       writeSettings_(form);
+      try { refreshDashboard_(); } catch (nothingToRefreshYet) {}
       return json_({ ok: true });
     }
     if (action === "saveImage") {
@@ -271,6 +274,7 @@ function readReports_() {
       month: month,
       monthLabel: monthWords_(month) || String(cell("Month label") || ""),
       name: name,
+      agentId: String(cell("Agent ID") || "").trim(),
       renewal: Number(cell("Renewal") || 0),
       rd: rows_(cell("RD json"), cell("RD detail")),
       fd: rows_(cell("FD json"), cell("FD detail")),
@@ -412,6 +416,7 @@ function saveReport_(form) {
     // And the same for the words: a bare `August 2026` becomes 1 August 2026.
     "Month label": form.monthLabel ? "'" + form.monthLabel : "",
     Name: form.name || "",
+    "Agent ID": form.agentId || "",
     Renewal: Number(form.renewal || 0),
     "New RDs": Number(form.rdCount || 0),
     "RD total": Number(form.rdTotal || 0),

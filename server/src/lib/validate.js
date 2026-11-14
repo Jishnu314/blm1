@@ -135,7 +135,8 @@ export function reportBody(raw) {
 
   return {
     name,
-    nameKey: name.toLowerCase(),
+    nameKey: name.toLowerCase().replace(/\s+/g, " "),
+    agentId: line(body.agentId, "agentId", "The agent ID", 32).trim(),
     month,
     renewal: money(body.renewal, "renewal", "The renewal figure"),
     rd: depositRows(body.rd, "rd"),
@@ -189,7 +190,29 @@ const SETTING_RULES = {
   boardOn: (value) => yesNo(value, "boardOn", "Whether the board shows"),
   boardTitle: (value) => line(value, "boardTitle", "The board heading", 120),
   boardPlayers: (value) => players(value),
+  agentIds: (value) => agentIds(value),
 };
+
+function agentIds(value) {
+  const said = line(value, "agentIds", "The agent IDs", 20_000);
+  if (said === "") return "{}";
+  let parsed;
+  try { parsed = JSON.parse(said); }
+  catch { throw bad("The agent IDs are not readable JSON.", "agentIds"); }
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+    throw bad("The agent IDs should be a name-to-ID object.", "agentIds");
+  }
+  for (const [name, id] of Object.entries(parsed)) {
+    const ids = Array.isArray(id) ? id : [id];
+    if (!name.trim() || ids.length === 0 || ids.some((one) => typeof one !== "string" || one.length > 32 || !one.trim()))
+      throw bad("Each agent needs a name and one or more IDs of up to 32 characters.", "agentIds");
+    if (new Set(ids).size !== ids.length) throw bad("An ID cannot be repeated for the same name.", "agentIds");
+    parsed[name] = ids;
+  }
+  const allIds = Object.values(parsed).flat();
+  if (new Set(allIds).size !== allIds.length) throw bad("Each agent ID must be unique.", "agentIds");
+  return JSON.stringify(parsed);
+}
 
 function aDay(value, field, what) {
   const said = asText(value).trim();
@@ -312,4 +335,11 @@ export function passwordChangeInput(raw) {
   if (next.length < 10) throw bad("A new password needs at least 10 characters.", "next");
   if (next.length > 200) throw bad("That is longer than any password needs to be.", "next");
   return { current, next };
+}
+
+export function customersBody(raw) {
+  const body = raw && typeof raw === "object" ? raw : {};
+  if (!Array.isArray(body.customers)) throw bad("Send the customer list as an array.", "customers");
+  if (body.customers.length > 5000) throw bad("That customer list is too large to save in one go.", "customers");
+  return JSON.parse(JSON.stringify(body.customers));
 }

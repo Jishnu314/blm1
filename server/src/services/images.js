@@ -1,9 +1,4 @@
-// The popup's pictures, kept in Postgres.
-//
-// In the database rather than on disk on purpose: hosted filesystems may be wiped on
-// every deploy, so a poster written to a folder would vanish the next time you push.
-// A few hundred kilobytes of bytea is nothing to Postgres and it is backed up with
-// everything else.
+// The popup's pictures, kept in the local SQLite file (blob column).
 //
 // What arrives is the data URL the browser's shrink() already produces, which is why
 // there is no multipart parser and no upload dependency anywhere in this server. What
@@ -11,6 +6,7 @@
 // — never the picture, because settings travel to every phone on every load.
 
 import { query, tx } from "../db.js";
+import { asIso, nowIso } from "../lib/time.js";
 import { enqueue, kick } from "./mirror.js";
 
 /** The row as every route describes a picture. */
@@ -21,17 +17,17 @@ function toImage(row) {
     url: `/api/images/${row.id}`,
     name: row.name,
     bytes: Number(row.bytes),
-    when: row.created_at.toISOString(),
+    when: asIso(row.created_at),
   };
 }
 
 export async function saveImage(input) {
   const image = await tx(async (client) => {
     const { rows } = await client.query(
-      `insert into images (name, mime, bytes, width, height, data)
-            values ($1, $2, $3, $4, $5, $6)
+      `insert into images (name, mime, bytes, width, height, data, created_at)
+            values ($1, $2, $3, $4, $5, $6, $7)
          returning id, name, bytes, created_at`,
-      [input.name, input.mime, input.bytes, input.width, input.height, input.data]
+      [input.name, input.mime, input.bytes, input.width, input.height, input.data, nowIso()]
     );
     // Drive gets a copy too, so the old "Monthly report popups" folder keeps filling
     // up exactly as it did. The queue row goes in here so the picture cannot be
@@ -60,7 +56,7 @@ export async function listImages() {
 
 /** The bytes, for GET /api/images/:id. Null when there is no such picture. */
 export async function readImage(id) {
-  const { rows } = await query(`select mime, data from images where id = $1::bigint`, [String(id)]);
+  const { rows } = await query(`select mime, data from images where id = $1`, [String(id)]);
   if (rows.length === 0) return null;
   return { mime: rows[0].mime, data: rows[0].data };
 }
@@ -79,6 +75,6 @@ export async function readImage(id) {
  * refusal to delete something is a strange thing for a delete to hold.
  */
 export async function removeImage(id) {
-  const { rowCount } = await query(`delete from images where id = $1::bigint`, [String(id)]);
+  const { rowCount } = await query(`delete from images where id = $1`, [String(id)]);
   return rowCount > 0;
 }

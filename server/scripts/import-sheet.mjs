@@ -99,18 +99,19 @@ async function run() {
 
     const landed = await tx(async (client) => {
       const done = await client.query(
-        `insert into reports (id, name, name_key, month, renewal, submitted_at, edited_at, edited_in)
-              values ($1, $2, $3, $4, $5, coalesce($6, now()), $7, $8)
+        `insert into reports (id, name, name_key, agent_id, month, renewal, submitted_at, edited_at, edited_in)
+              values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          on conflict (id) do nothing
            returning id`,
         [
           id,
           name,
           name.toLowerCase(),
+          String(raw?.agentId || "").trim(),
           month,
           figure(raw?.renewal),
-          stamp(raw?.submittedAt),
-          stamp(raw?.editedAt),
+          stamp(raw?.submittedAt)?.toISOString() || new Date().toISOString(),
+          stamp(raw?.editedAt)?.toISOString() || null,
           editedIn,
         ]
       );

@@ -8,7 +8,11 @@
     "dev": "vite",
     "phone": "vite --host",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "demo": "node scripts/demo.mjs",
+    "demo:reset": "npm --prefix server run reset",
+    "smoke": "node scripts/smoke.mjs",
+    "backup": "node scripts/backup.mjs"
   },
   "dependencies": {
     "react": "18.3.1",

@@ -12,7 +12,7 @@
 import express from "express";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
-import { loginInput, newReport, passwordChangeInput } from "../lib/validate.js";
+import { customersBody, loginInput, newReport, passwordChangeInput } from "../lib/validate.js";
 import {
   checkPassword,
   clearSessionCookie,
@@ -26,7 +26,10 @@ import {
 } from "../auth.js";
 import { lastError, queueDepth, sheetWebhookUrl } from "../services/mirror.js";
 import { insertReport, reportsSummary } from "../services/reports.js";
+import { readCustomers, writeCustomers } from "../services/customers.js";
 import { query } from "../db.js";
+import { config } from "../config.js";
+import { nowIso } from "../lib/time.js";
 
 export const admin = express.Router();
 
@@ -61,8 +64,9 @@ admin.post(
     await pause();
     if (!ok) throw wrong();
 
-    setSessionCookie(res, await createSession());
-    res.json({ ok: true });
+    const token = await createSession();
+    setSessionCookie(res, token);
+    res.json({ ok: true, token });
   })
 );
 
@@ -128,12 +132,19 @@ admin.get("/sheet", requireAdmin, asyncRoute(async (_req, res) => {
 }));
 
 admin.put("/sheet", requireAdmin, asyncRoute(async (req, res) => {
+  if (config.demoMode && !config.allowSheetInDemo) {
+    throw new ApiError(
+      "not_available_in_demo",
+      409,
+      "The local test database does not connect to Google Sheets, so test data can never reach the live sheet. Connect the sheet on the live site."
+    );
+  }
   const url = validAppsScriptUrl(req.body?.url);
   await sheetReports(url);
   await query(
-    `insert into settings(key, value, updated_at) values ($1, $2, now())
-     on conflict(key) do update set value = excluded.value, updated_at = now()`,
-    ["sheetWebhookUrl", url]
+    `insert into settings(key, value, updated_at) values ($1, $2, $3)
+     on conflict(key) do update set value = excluded.value, updated_at = excluded.updated_at`,
+    ["sheetWebhookUrl", url, nowIso()]
   );
   res.json({ configured: true, url });
 }));
@@ -157,6 +168,23 @@ admin.post("/sheet/import", requireAdmin, asyncRoute(async (_req, res) => {
   }
   res.json({ imported, skipped, total: sourceRows.length });
 }));
+
+admin.get(
+  "/customers",
+  requireAdmin,
+  asyncRoute(async (_req, res) => {
+    res.json({ customers: await readCustomers(), configured: true });
+  })
+);
+
+admin.put(
+  "/customers",
+  requireAdmin,
+  asyncRoute(async (req, res) => {
+    const customers = await writeCustomers(customersBody(req.body));
+    res.json({ customers, configured: true });
+  })
+);
 
 admin.get(
   "/status",

@@ -161,8 +161,9 @@ function depositLines_(rows, kind) {
  * them, so "jishnu" and "Jishnu" are one person in both places. The spelling kept
  * is the first one seen.
  */
-function dashboardRows_(reports) {
+function dashboardRows_(reports, agentIds) {
   const list = reports && reports.length ? reports : [];
+  const ids = agentIds && typeof agentIds === "object" ? agentIds : {};
   const months = {};
 
   for (let i = 0; i < list.length; i += 1) {
@@ -190,14 +191,17 @@ function dashboardRows_(reports) {
     month.total += renewal + rd + fd;
     month.count += 1;
 
-    const who = name.toLowerCase();
-    if (!month.agents[who]) {
-      month.agents[who] = {
-        name: name, renewal: 0, rd: 0, fd: 0, total: 0, count: 0, deposits: [],
+    const who = name.toLowerCase().replace(/\s+/g, " ");
+    const assigned = Array.isArray(ids[who]) ? ids[who] : ids[who] ? [ids[who]] : [];
+    const agentId = String(report.agentId || (assigned.length === 1 ? assigned[0] : ""));
+    const agentKey = agentId ? "id:" + agentId : "name:" + who;
+    if (!month.agents[agentKey]) {
+      month.agents[agentKey] = {
+        name: name, id: agentId, renewal: 0, rd: 0, fd: 0, total: 0, count: 0, deposits: [],
       };
-      month.order.push(who);
+      month.order.push(agentKey);
     }
-    const agent = month.agents[who];
+    const agent = month.agents[agentKey];
     agent.renewal += renewal;
     agent.rd += rd;
     agent.fd += fd;
@@ -265,7 +269,9 @@ function refreshDashboard_() {
   if (!sheet) sheet = book.insertSheet(DASHBOARD_TAB, 0);
 
   const stamp = Utilities.formatDate(new Date(), zone_(), "d MMMM yyyy 'at' HH:mm");
-  const built = dashboardGrid_(dashboardRows_(readReports_()), stamp);
+  let agentIds = {};
+  try { agentIds = JSON.parse(readSettings_().agentIds || "{}"); } catch {}
+  const built = dashboardGrid_(dashboardRows_(readReports_(), agentIds), stamp);
 
   sheet.clear();
   sheet.clearConditionalFormatRules();
@@ -334,7 +340,7 @@ function dashboardGrid_(data, stamp) {
     put("title", [words(month.label.toUpperCase() + "  ·  EACH AGENT"), "", "", "", "", ""]);
     put("head", columns);
     month.agents.forEach(function (agent) {
-      put("agent", tally(agent.name, agent, agent.count));
+      put("agent", tally(agent.id ? agent.name + "  ·  ID " + agent.id : agent.name, agent, agent.count));
       // Every deposit on its own line, under the agent who sent it. The amount sits
       // in the column for its kind, so an RD is still amber and an FD still blue.
       // The other cells are left empty rather than marked ×: × means no money came
@@ -560,7 +566,7 @@ function tidySettings_() {
         cell.setValue("'" + Utilities.formatDate(value, zone_(), DATE_SETTINGS[key]));
       }
       cell.setNumberFormat("@");
-    } else if (key === "popupImage" || key === "boardPlayers") {
+    } else if (key === "popupImage" || key === "boardPlayers" || key === "agentIds") {
       // Both can run to hundreds of characters; clipped, they stay one row tall.
       cell.setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
     }
@@ -757,5 +763,3 @@ function afterReportChange_() {
   fixTotals_(reportsTab_());
   refreshDashboard_();
 }
-
-

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import AmountField from "./components/AmountField.jsx";
 import DepositSection from "./components/DepositSection.jsx";
 import Receipt from "./components/Receipt.jsx";
 import Popup from "./components/Popup.jsx";
 import Board from "./components/Board.jsx";
+import ClosedCollection from "./components/ClosedCollection.jsx";
+import NameCard from "./components/NameCard.jsx";
 import { reportMonth, isCollectionOpen } from "./lib/month.js";
 import { toNumber } from "./lib/currency.js";
 import { sendEntry, flushOutbox } from "./lib/submit.js";
@@ -11,53 +12,24 @@ import { loadSettings, fetchSettings } from "./lib/settings.js";
 import { shouldShow, markSeen, readSeen, popupLive } from "./lib/popup.js";
 import { boardLive } from "./lib/board.js";
 import { thud } from "./lib/haptics.js";
-import { blankRow, MAX_DEPOSIT_ROWS, MAX_NAME } from "./lib/rows.js";
+import { blankRow, MAX_DEPOSIT_ROWS } from "./lib/rows.js";
+import {
+  agentIdsForName,
+  chosenAgentId,
+  cleanRows as cleanTypedRows,
+  errorFor,
+  isBlank,
+  rowErrors,
+  sumRows as sumTypedRows,
+} from "./lib/form.js";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** A row the agent tapped "add" on but never filled — dropped, not complained about. */
-const isBlank = (row) => row.digits === "" && row.scheme.trim() === "";
-
-/** Rows worth sending: amount and scheme both present. */
-function cleanRows(rows) {
-  return rows
-    .filter((row) => !isBlank(row))
-    .map((row) => ({ amount: toNumber(row.digits), scheme: row.scheme.trim() }));
-}
-
-function sumRows(rows) {
-  return rows.reduce((total, row) => total + (toNumber(row.digits) || 0), 0);
-}
-
-/** One message per half-filled row, keyed by row id. */
-function rowErrors(rows, short) {
-  const found = {};
-  for (const row of rows) {
-    if (isBlank(row)) continue;
-    if (row.digits === "") found[row.id] = `Enter the ${short} amount.`;
-    else if (row.scheme.trim() === "") found[row.id] = "Type the scheme name.";
-  }
-  return found;
-}
-
-/**
- * Where a refusal's `field` belongs on this form.
- *
- * The server names the field in its own words — "name", "renewal", "rd[2].scheme" —
- * because those are the names in API.md. Two of them are boxes this form can point
- * at. The deposit rows are not: the server counts them by position and this form
- * keys them by row id, and a message put against the wrong row would be worse than
- * one put against none. Those are left to the sentence on the receipt, which names
- * the row itself.
- */
-function errorFor(field, note) {
-  if (field === "name") return { name: note };
-  if (field === "renewal") return { amount: note };
-  return {};
-}
+const cleanRows = (rows) => cleanTypedRows(rows, toNumber);
+const sumRows = (rows) => sumTypedRows(rows, toNumber);
 
 export default function App() {
   const [name, setName] = useState("");
+  const [selectedAgentId, setSelectedAgentId] = useState("");
   const [digits, setDigits] = useState("");
   const [rd, setRd] = useState([]);
   const [fd, setFd] = useState([]);
@@ -126,6 +98,8 @@ export default function App() {
   ) : null;
 
   const month = reportMonth(new Date(), settings);
+  const { agentIdMap, enteredNameKey, matchedAgentIds } = agentIdsForName(settings, name);
+  const agentId = chosenAgentId(matchedAgentIds, selectedAgentId);
 
   // The standing, when there is one to show. Switched on and holding at least one
   // name — an empty board is not the same as a board that is off, but it looks
@@ -167,6 +141,9 @@ export default function App() {
     if (name.trim().length < 2) {
       found.name = "Type your name so we know whose figures these are.";
     }
+    if (matchedAgentIds.length > 1 && !agentId) {
+      found.agentId = "Choose your agent ID to tell the reports apart.";
+    }
     if (digits === "") {
       found.amount = "Enter the amount — put 0 if there was no renewal.";
     }
@@ -175,6 +152,7 @@ export default function App() {
     const blocked =
       found.name ||
       found.amount ||
+      found.agentId ||
       Object.keys(found.rd).length > 0 ||
       Object.keys(found.fd).length > 0;
     if (blocked) {
@@ -213,6 +191,7 @@ export default function App() {
     attemptRef.current = mine;
     const sending = sendEntry({
       name,
+      agentId,
       renewal: toNumber(digits),
       rd: cleanRows(rd),
       fd: cleanRows(fd),
@@ -271,6 +250,7 @@ export default function App() {
 
   function startAgain() {
     setName("");
+    setSelectedAgentId("");
     setDigits("");
     setRd([]);
     setFd([]);
@@ -281,28 +261,12 @@ export default function App() {
 
   if (!isCollectionOpen(new Date(), settings)) {
     return (
-      <div className="app">
-        {announcement}
-        <main className="card">
-          <div className="panel">
-            <p className="eyebrow">
-              <span className="dot" aria-hidden="true" />
-              Monthly report collection
-            </p>
-            <h1 className="month">
-              {month.name}
-              <span className="month-year">{month.year}</span>
-            </h1>
-            <p className="lede">
-              Collection is closed for now. Your leader will reopen it when the next
-              month's figures are due.
-            </p>
-            {seeAgain}
-          </div>
-          {standing}
-        </main>
-        <p className="credit">{settings.credit}</p>
-      </div>
+      <ClosedCollection
+        month={month}
+        settings={settings}
+        announcement={announcement}
+        seeAgain={seeAgain}
+      />
     );
   }
 
@@ -346,47 +310,20 @@ export default function App() {
                 type. */}
             {standing}
 
-            {/* The two answers we must have, in one card. */}
-            <div className="panel">
-              <div className="field">
-                <label className="label" htmlFor="agent-name">
-                  Your name
-                </label>
-                <input
-                  id="agent-name"
-                  ref={nameRef}
-                  className="well name-input"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  onKeyDown={(event) => {
-                    // "next" on the phone keyboard should mean next, not submit.
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      amountRef.current?.focus();
-                    }
-                  }}
-                  placeholder="e.g. Anil Kumar"
-                  autoComplete="name"
-                  enterKeyHint="next"
-                  /* The register takes 80 characters and refuses the report over
-                     that. Stopping the typing is kinder than refusing the report:
-                     nobody's name is 81 characters, so the only way to reach this
-                     is a phone's keyboard repeating, and that should cost nothing. */
-                  maxLength={MAX_NAME}
-                  aria-describedby="name-hint"
-                />
-                <p id="name-hint" className={errors.name ? "hint is-error" : "hint"}>
-                  {errors.name || "The name your team knows you by."}
-                </p>
-              </div>
-
-              <AmountField
-                digits={digits}
-                onChange={setDigits}
-                error={errors.amount}
-                inputRef={amountRef}
-              />
-            </div>
+            <NameCard
+              name={name}
+              setName={setName}
+              nameRef={nameRef}
+              amountRef={amountRef}
+              digits={digits}
+              setDigits={setDigits}
+              errors={errors}
+              matchedAgentIds={matchedAgentIds}
+              enteredNameKey={enteredNameKey}
+              agentIdMap={agentIdMap}
+              agentId={agentId}
+              setSelectedAgentId={setSelectedAgentId}
+            />
 
             {settings.showRd !== false && (
               <DepositSection

@@ -5,3 +5,12 @@ dist
 supabase/functions/.env
 *.log
 .DS_Store
+server/data/*.sqlite
+server/data/*.sqlite-wal
+server/data/*.sqlite-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Private copies of the register
+backups/

@@ -31,12 +31,13 @@ const settingKeys = new Set([
   "reportMonth", "graceDays", "credit", "open", "message", "showRd", "showFd", "autoWindow",
   "opensOnDay", "closesAfterDay", "popupOn", "popupMode", "popupFrom", "popupTo", "popupTitle",
   "popupText", "popupImage", "boardOn", "boardTitle", "boardPlayers",
+  "agentIds",
 ]);
 const defaults: Record<string, unknown> = {
   reportMonth: null, graceDays: 7, credit: "Jishnu · SLIA", open: true, message: "", showRd: true,
   showFd: true, autoWindow: false, opensOnDay: 28, closesAfterDay: 7, popupOn: false, popupMode: "always",
   popupFrom: "", popupTo: "", popupTitle: "", popupText: "", popupImage: "", boardOn: false,
-  boardTitle: "", boardPlayers: "[]",
+  boardTitle: "", boardPlayers: "[]", agentIds: "{}",
 };
 
 function normalizeReport(row: Record<string, any>) {
@@ -44,7 +45,7 @@ function normalizeReport(row: Record<string, any>) {
   const of = (kind: string) => deposits.filter((d) => d.kind === kind)
     .map((d) => ({ amount: Number(d.amount), scheme: d.scheme }));
   return {
-    id: row.id, name: row.name, month: row.month, renewal: Number(row.renewal),
+    id: row.id, name: row.name, agentId: row.agent_id || "", month: row.month, renewal: Number(row.renewal),
     rd: of("rd"), fd: of("fd"), submittedAt: iso(row.submitted_at),
     editedAt: row.edited_at ? iso(row.edited_at) : "", editedIn: row.edited_in || "",
     ...(row.deleted_at ? { deletedAt: iso(row.deleted_at) } : {}),
@@ -76,8 +77,10 @@ function validateReport(input: any, withId = true) {
       return { amount: money(r?.amount, `${field}[${i}].amount`), scheme };
     });
   };
+  const agentId = text(b.agentId);
+  if (agentId.length > 32) throw fail(400, "invalid_input", "The agent ID is too long.", "agentId");
   return {
-    id, name, month, renewal: money(b.renewal, "renewal"), rd: deposits(b.rd, "rd"), fd: deposits(b.fd, "fd"),
+    id, name, agentId, month, renewal: money(b.renewal, "renewal"), rd: deposits(b.rd, "rd"), fd: deposits(b.fd, "fd"),
     submittedAt: iso(b.submittedAt),
   };
 }
@@ -97,7 +100,7 @@ function validateSettings(raw: any) {
       out[key] = n;
     } else {
       const v = value == null ? "" : String(value);
-      const max = key === "boardPlayers" ? 20_000 : key === "message" ? 500 : key === "popupText" ? 2000 :
+      const max = ["boardPlayers", "agentIds"].includes(key) ? 20_000 : key === "message" ? 500 : key === "popupText" ? 2000 :
         ["credit"].includes(key) ? 80 : ["popupTitle", "boardTitle"].includes(key) ? 120 : 300;
       if (v.length > max)
         throw fail(400, "invalid_input", "That value is too long.", key);
@@ -108,6 +111,21 @@ function validateSettings(raw: any) {
       if (key === "boardPlayers") {
         try { if (!Array.isArray(JSON.parse(v || "[]"))) throw new Error(); }
         catch { throw fail(400, "invalid_input", "The board list should be a JSON array.", key); }
+      }
+      if (key === "agentIds") {
+        let roster: any;
+        try { roster = JSON.parse(v || "{}"); } catch { throw fail(400, "invalid_input", "The agent ID list is not readable JSON.", key); }
+        if (!roster || typeof roster !== "object" || Array.isArray(roster)) throw fail(400, "invalid_input", "The agent ID list should map names to ID lists.", key);
+        const ids: string[] = [];
+        for (const [name, value] of Object.entries(roster)) {
+          const list = Array.isArray(value) ? value : [value];
+          if (!name.trim() || !list.length || list.some((id) => typeof id !== "string" || !id.trim() || id.length > 32))
+            throw fail(400, "invalid_input", "Each agent needs one or more IDs of up to 32 characters.", key);
+          ids.push(...list as string[]);
+          roster[name] = list;
+        }
+        if (new Set(ids).size !== ids.length) throw fail(400, "invalid_input", "Each agent ID must be unique.", key);
+        out[key] = JSON.stringify(roster); continue;
       }
       if (key === "popupImage" && /^data:/i.test(v)) throw fail(400, "invalid_input", "Upload the picture first.", key);
       out[key] = key === "reportMonth" && v === "" ? null : key === "boardPlayers" && v === "" ? "[]" : v;
@@ -229,7 +247,7 @@ function monthLabel(month: string) {
 }
 function reportMirror(report: any) {
   const rd = report.rd || []; const fd = report.fd || [];
-  return new URLSearchParams({ action: "saveReport", id: report.id, name: report.name,
+  return new URLSearchParams({ action: "saveReport", id: report.id, name: report.name, agentId: report.agentId || "",
     renewal: String(report.renewal), rdCount: String(rd.length), rdTotal: String(sum(rd)), rdDetail: detail(rd),
     fdCount: String(fd.length), fdTotal: String(sum(fd)), fdDetail: detail(fd), rdJson: JSON.stringify(rd),
     fdJson: JSON.stringify(fd), month: report.month, monthLabel: monthLabel(report.month), submittedAt: report.submittedAt });
@@ -241,7 +259,7 @@ function settingsMirror(settings: Record<string, any>) {
     autoWindow: yes("autoWindow"), opensOnDay: v("opensOnDay"), closesAfterDay: v("closesAfterDay"), popupOn: yes("popupOn"),
     popupMode: v("popupMode"), popupFrom: v("popupFrom"), popupTo: v("popupTo"), popupTitle: v("popupTitle"),
     popupText: v("popupText"), popupImage: v("popupImage"), boardOn: yes("boardOn"), boardTitle: v("boardTitle"),
-    boardPlayers: v("boardPlayers") || "[]" });
+    boardPlayers: v("boardPlayers") || "[]", agentIds: v("agentIds") || "{}" });
 }
 async function settingsSnapshot() {
   const { data, error } = await db.from("settings").select("key,value"); if (error) throw error;
@@ -314,13 +332,15 @@ async function handle(req: Request) {
 
   if (route === "/health" && method === "GET") {
     const { error } = await db.from("reports").select("id", { head: true, count: "exact" });
-    return json({ ok: !error, at: new Date().toISOString(), database: !error });
+    return json({ ok: !error, at: new Date().toISOString(), database: !error, engine: "supabase", mode: "live" });
   }
 
   if (route === "/settings" && method === "GET") return json({ settings: await settingsSnapshot() });
   if (route === "/settings" && method === "PUT") {
     await adminToken(req); const patch = validateSettings(body?.settings);
-    const { error } = await db.rpc("api_write_settings", { patch }); if (error) throw error;
+    const { error } = await db.rpc("api_write_settings", { patch });
+    if (error?.code === "23514") throw fail(409, "immutable_agent_id", "An applied agent ID cannot be changed or removed.", "agentIds");
+    if (error) throw error;
     const settings = await settingsSnapshot(); await queueMirror("settings", "", JSON.stringify(settings));
     return json({ settings });
   }
@@ -336,7 +356,16 @@ async function handle(req: Request) {
   }
   if (route === "/reports" && method === "POST") {
     await rateLimit(req, "reports", 30, 600);
-    const report = validateReport(body?.report); const { data: created, error } = await db.rpc("api_create_report", { p: report });
+    const report = validateReport(body?.report);
+    let roster: Record<string, any> = {};
+    try { roster = JSON.parse(String((await settingsSnapshot()).agentIds || "{}")); } catch {}
+    const key = report.name.trim().toLowerCase().replace(/\s+/g, " ");
+    const heldIds = roster[key];
+    const ids = Array.isArray(heldIds) ? heldIds : heldIds ? [heldIds] : [];
+    if (ids.length === 1 && !report.agentId) report.agentId = ids[0];
+    if (ids.length && !ids.includes(report.agentId)) throw fail(400, "agent_id_required", "Choose the agent ID assigned to this name.", "agentId");
+    if (!ids.length && report.agentId) throw fail(400, "unknown_agent_id", "That agent ID is not assigned to this name.", "agentId");
+    const { data: created, error } = await db.rpc("api_create_report", { p: report });
     if (error) throw error;
     const saved = await readReport(report.id);
     if (created) await queueMirror("report", report.id);
@@ -513,7 +542,16 @@ Deno.serve(async (req) => {
   catch (problem) {
     console.error(problem);
     if (problem instanceof HttpError) return json(envelope(problem), problem.status);
-    const message = problem instanceof Error ? problem.message : "The request could not be completed.";
-    return json({ error: { code: "server_error", message: "The server could not complete that request." } }, 500);
+    // Keep internal messages in function logs, but return a safe database/runtime
+    // code so an admin can distinguish a missing migration from a transient error.
+    // Never return the raw Postgres message: it can contain schema details.
+    const code = problem && typeof problem === "object" && "code" in problem
+      ? String((problem as { code: unknown }).code || "")
+      : "";
+    const safeCode = /^[A-Z0-9_-]{1,24}$/.test(code) ? code : "";
+    const message = safeCode
+      ? `The server could not complete that request (backend code ${safeCode}).`
+      : "The server could not complete that request.";
+    return json({ error: { code: "server_error", message } }, 500);
   }
 });

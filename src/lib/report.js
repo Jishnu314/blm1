@@ -53,9 +53,10 @@ export function byAgent(entries = []) {
     const name = String(entry.name || "").trim();
     if (!name) continue;
 
-    const id = identity(name);
-    if (!agents.has(id)) agents.set(id, { name, months: new Map() });
-    const agent = agents.get(id);
+    const agentId = String(entry.agentId || "").trim();
+    const key = agentId ? `id:${agentId}` : `name:${identity(name)}`;
+    if (!agents.has(key)) agents.set(key, { name, agentId, months: new Map() });
+    const agent = agents.get(key);
 
     const monthKey = entry.month || "";
     const label = entry.monthLabel || describeKey(monthKey)?.full || monthKey || "—";
@@ -72,7 +73,7 @@ export function byAgent(entries = []) {
       const months = [...agent.months.values()]
         .map((month) => ({ ...month, total: month.renewal + month.rd + month.fd }))
         .sort((a, b) => a.key.localeCompare(b.key));
-      return { id: identity(agent.name), name: agent.name, months, ...sumMonths(months) };
+      return { id: agent.agentId ? `id:${agent.agentId}` : `name:${identity(agent.name)}`, agentId: agent.agentId, name: agent.name, months, ...sumMonths(months) };
     })
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 }

@@ -67,7 +67,7 @@ export function buildApp() {
     res.set("Access-Control-Allow-Origin", origin);
     res.set("Access-Control-Allow-Credentials", "true");
     res.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Accept, Content-Type");
+    res.set("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization");
     res.vary("Origin");
 
     if (req.method === "OPTIONS") {
@@ -86,12 +86,18 @@ export function buildApp() {
     asyncRoute(async (req, res) => {
       let database = true;
       try {
-        await query(`select 1`);
+        await query(`select 1 as ok`);
       } catch (problem) {
         database = false;
-        console.error("Health check could not reach Postgres:", problem.message);
+        console.error("Health check could not reach SQLite:", problem.message);
       }
-      res.json({ ok: database, at: new Date().toISOString(), database });
+      res.json({
+        ok: database,
+        at: new Date().toISOString(),
+        database,
+        engine: "sqlite",
+        mode: config.demoMode ? "demo" : "local",
+      });
     })
   );
 

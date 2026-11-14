@@ -163,8 +163,10 @@ export const isUnauthorised = (problem) => problem instanceof ApiError && proble
  * this browser's storage looking like the current value. Three lies from one
  * missing question.
  *
- * 400 is "what you typed is not usable" and 404 is "there is nothing here to
- * change". Neither comes right by waiting, so neither belongs in the outbox: an
+ * 400 is "what you typed is not usable", 404 is "there is nothing here to
+ * change", and 409 is a conflict with the current server state (for example, an
+ * agent ID that has already been applied). None comes right by waiting, so none
+ * belongs in the outbox: an
  * action the server will never accept sits at the head of the queue and blocks
  * everything behind it on every single load.
  *
@@ -173,4 +175,4 @@ export const isUnauthorised = (problem) => problem instanceof ApiError && proble
  * next attempt.
  */
 export const isRefusal = (problem) =>
-  problem instanceof ApiError && (problem.status === 400 || problem.status === 404);
+  problem instanceof ApiError && [400, 404, 409].includes(problem.status);

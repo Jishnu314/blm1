@@ -106,6 +106,7 @@ read the settings, and that is all it can do.
 ```json
 { "report": { "id": "web-…", "name": "Ramesh", "month": "2026-08",
               "renewal": 30000, "rd": [{ "amount": 5000, "scheme": "Bhima" }], "fd": [],
+              "agentId": "AG-001",
               "submittedAt": "2026-08-31T10:22:00.000Z" } }
 ```
 
@@ -122,6 +123,8 @@ the two are separate routes.
 Rules: `name` 1–80 characters after trimming; `month` matches `YYYY-MM`; `renewal`
 and every `amount` a whole number, 0 to 999,999,999 (0 is allowed, negative is not);
 at most 20 `rd` and 20 `fd` rows; `scheme` up to 80 characters, may be empty;
+`agentId` is required when an ID is assigned to the entered name and must be one of
+that name's assigned IDs;
 `id` up to 64 characters of `A–Z a–z 0–9 - _`; `submittedAt` optional, and the server
 uses its own clock if it is missing or unparseable. Rate limit: 30 posts per IP per
 10 minutes. Anything over the limits is `invalid_input` with the offending `field`.
@@ -186,6 +189,7 @@ what came back and never has to guess what the merge did.
 | `boardOn` | bool | |
 | `boardTitle` | string ≤ 120 | |
 | `boardPlayers` | string ≤ 20000 | a JSON array, kept as the string |
+| `agentIds` | string ≤ 20000 | a JSON object mapping normalized agent names to arrays of immutable IDs |
 
 Booleans travel as real JSON booleans now, not the words `yes`/`no` a spreadsheet
 cell needed. The client's `flag()` still reads the words, so a sheet set up before

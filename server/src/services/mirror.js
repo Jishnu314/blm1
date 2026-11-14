@@ -23,6 +23,7 @@
 import { config } from "../config.js";
 import { query } from "../db.js";
 import { monthLabel } from "../lib/month.js";
+import { asIso, laterIso, nowIso } from "../lib/time.js";
 
 const BATCH = 20;
 const EVERY_MS = 60_000;
@@ -34,8 +35,17 @@ export function mirrorEnabled() {
 }
 
 /** The admin may add the web-app link in the page; keep it in the private settings row. */
-export async function sheetWebhookUrl(runner = query) {
-  const held = await runner.query(`select value from settings where key = $1`, ["sheetWebhookUrl"]);
+function runWith(runner) {
+  if (!runner) return query;
+  if (typeof runner === "function") return runner;
+  if (typeof runner.query === "function") return runner.query.bind(runner);
+  return query;
+}
+
+export async function sheetWebhookUrl(runner) {
+  // Test data must never reach the live sheet (see config.allowSheetInDemo).
+  if (config.demoMode && !config.allowSheetInDemo) return "";
+  const held = await runWith(runner)(`select value from settings where key = $1`, ["sheetWebhookUrl"]);
   return String(held.rows[0]?.value || config.sheetWebhookUrl || "").trim();
 }
 
@@ -45,11 +55,11 @@ export async function sheetWebhookUrl(runner = query) {
  */
 export async function enqueue(client, kind, ref = "", payload = "") {
   if (!(await sheetWebhookUrl(client))) return;
-  await client.query(`insert into mirror_queue (kind, ref, payload) values ($1, $2, $3)`, [
-    kind,
-    String(ref),
-    payload,
-  ]);
+  const at = nowIso();
+  await client.query(
+    `insert into mirror_queue (kind, ref, payload, next_try_at, created_at) values ($1, $2, $3, $4, $4)`,
+    [kind, String(ref), payload, at]
+  );
 }
 
 /**
@@ -82,12 +92,12 @@ export async function flush() {
   running = true;
   try {
     const { rows } = await query(
-      `select id, kind, ref, payload
+      `select id, kind, ref, payload, attempts
          from mirror_queue
-        where next_try_at <= now()
+        where next_try_at <= $1
         order by id
-        limit $1`,
-      [BATCH]
+        limit $2`,
+      [nowIso(), BATCH]
     );
 
     let sent = 0;
@@ -98,13 +108,14 @@ export async function flush() {
         // `attempts` on the right of an UPDATE is still the old count, so the delay
         // is worked out from what this failure makes it: 30s, then 60s, up to five
         // minutes, and no further.
+        const delayMs = Math.min(Number(row.attempts || 0) + 1, 10) * 30_000;
         await query(
           `update mirror_queue
               set attempts = attempts + 1,
                   last_error = $2,
-                  next_try_at = now() + least(attempts + 1, 10) * interval '30 seconds'
+                  next_try_at = $3
             where id = $1`,
-          [row.id, String(problem?.message || problem).slice(0, 500)]
+          [row.id, String(problem?.message || problem).slice(0, 500), laterIso(delayMs)]
         );
         break;
       }
@@ -203,7 +214,7 @@ const describeRows = (rows) => rows.map((row) => `${row.scheme} ${row.amount || 
  */
 async function reportBody(id) {
   const found = await query(
-    `select id, name, month, renewal, submitted_at from reports where id = $1`,
+    `select id, name, agent_id, month, renewal, submitted_at from reports where id = $1`,
     [String(id)]
   );
   if (found.rows.length === 0) return null;
@@ -224,6 +235,7 @@ async function reportBody(id) {
     action: "saveReport",
     id: row.id,
     name: row.name,
+    agentId: row.agent_id || "",
     renewal: String(Number(row.renewal)),
     rdCount: String(rd.length),
     rdTotal: String(sum(rd)),
@@ -238,7 +250,7 @@ async function reportBody(id) {
     // Built from the key, never stored: the sheet has a "Month label" column and the
     // Dashboard reads it.
     monthLabel: monthLabel(row.month),
-    submittedAt: row.submitted_at.toISOString(),
+    submittedAt: asIso(row.submitted_at),
   });
 }
 
@@ -286,6 +298,7 @@ function settingsBody(payload) {
     boardOn: words(held.boardOn),
     boardTitle: String(held.boardTitle || ""),
     boardPlayers: String(held.boardPlayers || "[]"),
+    agentIds: String(held.agentIds || "{}"),
   });
 }
 
@@ -297,7 +310,7 @@ function settingsBody(payload) {
 async function imageBody(ref) {
   const id = String(ref);
   if (!/^\d{1,18}$/.test(id)) return null;
-  const { rows } = await query(`select name, mime, data from images where id = $1::bigint`, [id]);
+  const { rows } = await query(`select name, mime, data from images where id = $1`, [id]);
   if (rows.length === 0) return null;
   return new URLSearchParams({
     action: "saveImage",

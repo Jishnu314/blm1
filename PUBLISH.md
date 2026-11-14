@@ -1,5 +1,8 @@
 # Publish with GitHub Pages and Supabase
 
+**Later — production only.** For testing on this PC, use SQLite and `npm run demo`.
+Do not create the live project until the local demo is the version you want.
+
 The production setup is **GitHub Pages** for the website and **Supabase** for the
 database, image storage, and API. There is no Railway or Render server in this setup.
 The API is a Supabase Edge Function, and the Supabase database is the main register.
@@ -13,8 +16,10 @@ This repository is `Jishnu314/blm1`. The site address will be
 1. Create a project at [Supabase](https://supabase.com/) and save its database
    password privately.
 2. In the project, open **SQL Editor → New query**. Paste and run the complete file
-   `supabase/migrations/001_initial.sql`. It creates the register tables, access
-   controls, image bucket, and database functions.
+   `supabase/migrations/001_initial.sql`, then `002_agent_ids.sql`, then
+   `003_revoke_public_rls_auto_enable.sql`, in that order, each as its own query. They
+   create the register tables, access controls, image bucket, and database functions
+   (002 adds the rule that an applied agent ID cannot be changed).
 3. Open **Edge Functions → Secrets** and add `ADMIN_PASSWORD` with a private password
    of at least 10 characters. The function creates its admin password record on the
    first sign-in. Connect the Google Sheet later from **Admin → Settings**; the link
@@ -48,18 +53,22 @@ The `anon` key is intended for the browser; database access is blocked by row-le
 security and goes through the Edge Function. Never use the service-role/secret key
 as a GitHub variable.
 
-For local development, create `.env.local` in the repository root with the same two
-public values (`VITE_API_URL` and `VITE_SUPABASE_ANON_KEY`). This file is ignored by
-Git. Restart Vite after creating or changing it; when `VITE_API_URL` is set, browser
-requests go straight to Supabase instead of the legacy local Express proxy.
+Local development never uses these values. `vite.config.js` blanks every `VITE_`
+variable for `npm run dev`, `npm run demo` and local builds, so this PC always talks to
+its own SQLite test database and can never read or write the live one. Only the GitHub
+Pages build reads `VITE_API_URL` and `VITE_SUPABASE_ANON_KEY`, from the repository
+variables above. (To deliberately point a local build at Supabase, set
+`USE_REMOTE_API=1` for that one command. Do not do this with test data.)
 
-Use this format, replacing both placeholders with values from **Supabase → Project
-Settings → API**:
+The two databases are independent:
 
-```dotenv
-VITE_API_URL=https://YOUR-PROJECT-REF.supabase.co/functions/v1/api
-VITE_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
-```
+| | Test | Live |
+| --- | --- | --- |
+| Where | `server/data/demo.sqlite` on this PC | Supabase Postgres project |
+| API | Express in `server/` (port 8787) | Supabase Edge Function `api` |
+| Admin password | `demo-admin-10` | `ADMIN_PASSWORD` secret in Supabase |
+| Google Sheet copy | Always off | Connected from Admin → Settings |
+| Page label | "Test database" | "Live register · Supabase" |
 
 ## 3. Deploy the API
 
@@ -70,6 +79,17 @@ VITE_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
    workflow** to redeploy the function.
 4. Open `https://YOUR-PROJECT-REF.supabase.co/functions/v1/api/api/health` in a
    browser. A working API reports `"database":true`.
+
+For the agent-ID update, first run `supabase/migrations/002_agent_ids.sql` once in
+**Supabase → SQL Editor**. Then push the updated files to the repository's `main`
+branch. GitHub Actions deploys the updated Edge Function automatically; the same
+push also publishes the updated form and admin page. Check both workflows under the
+repository's **Actions** tab and wait for them to finish before applying IDs.
+
+To resolve the `public.rls_auto_enable()` security finding, run
+`supabase/migrations/003_revoke_public_rls_auto_enable.sql` once in **Supabase → SQL
+Editor**. It removes execution access for `PUBLIC`, `anon`, and `authenticated`;
+internal trigger execution remains available.
 
 ## 4. Publish the website
 

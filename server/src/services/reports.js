@@ -1,4 +1,4 @@
-// Reports, in and out of Postgres.
+// Reports, in and out of the local SQLite file.
 //
 // Two decisions here are the reason this file exists rather than the routes talking
 // to the database themselves:
@@ -12,6 +12,7 @@
 //   "05000" — which is a bug this app has already had once.
 
 import { query, tx } from "../db.js";
+import { asIso, nowIso } from "../lib/time.js";
 import { enqueue, kick } from "./mirror.js";
 
 /** The row and its deposits, as the shape every route returns. */
@@ -24,18 +25,19 @@ function toReport(row, deposits = []) {
   return {
     id: row.id,
     name: row.name,
+    agentId: row.agent_id || "",
     month: row.month,
     renewal: Number(row.renewal),
     rd: of("rd"),
     fd: of("fd"),
-    submittedAt: row.submitted_at.toISOString(),
+    submittedAt: asIso(row.submitted_at),
     // "" rather than null for both, so a client never has to check which kind of
     // nothing it got.
-    editedAt: row.edited_at ? row.edited_at.toISOString() : "",
+    editedAt: row.edited_at ? asIso(row.edited_at) : "",
     editedIn: row.edited_in || "",
     // Only on a report that has been removed, and only ?includeDeleted=1 ever sees
     // one. Without it the admin page could not tell a deleted row from a live one.
-    ...(row.deleted_at ? { deletedAt: row.deleted_at.toISOString() } : {}),
+    ...(row.deleted_at ? { deletedAt: asIso(row.deleted_at) } : {}),
   };
 }
 
@@ -87,12 +89,13 @@ export async function listReports({ month = "", includeDeleted = false } = {}) {
   if (found.rows.length === 0) return { reports: [], at: new Date().toISOString() };
 
   const ids = found.rows.map((row) => row.id);
+  const placeholders = ids.map((_, index) => `$${index + 1}`).join(", ");
   const held = await query(
     `select report_id, kind, amount, scheme
        from deposits
-      where report_id = any($1::text[])
+      where report_id in (${placeholders})
       order by position, id`,
-    [ids]
+    ids
   );
 
   const byReport = new Map();
@@ -123,11 +126,11 @@ export async function listReports({ month = "", includeDeleted = false } = {}) {
 export async function insertReport(input) {
   const result = await tx(async (client) => {
     const inserted = await client.query(
-      `insert into reports (id, name, name_key, month, renewal, submitted_at)
-            values ($1, $2, $3, $4, $5, $6)
+      `insert into reports (id, name, name_key, agent_id, month, renewal, submitted_at)
+            values ($1, $2, $3, $4, $5, $6, $7)
        on conflict (id) do nothing
          returning id`,
-      [input.id, input.name, input.nameKey, input.month, input.renewal, input.submittedAt]
+      [input.id, input.name, input.nameKey, input.agentId || "", input.month, input.renewal, asIso(input.submittedAt) || new Date().toISOString()]
     );
     const created = inserted.rowCount > 0;
 
@@ -161,10 +164,10 @@ export async function replaceReport(id, input) {
 
     await client.query(
       `update reports
-          set name = $2, name_key = $3, month = $4, renewal = $5,
-              edited_at = now(), edited_in = 'web'
+          set name = $2, name_key = $3, agent_id = $4, month = $5, renewal = $6,
+              edited_at = $7, edited_in = 'web'
         where id = $1`,
-      [id, input.name, input.nameKey, input.month, input.renewal]
+      [id, input.name, input.nameKey, input.agentId || "", input.month, input.renewal, nowIso()]
     );
     await client.query(`delete from deposits where report_id = $1`, [id]);
     await writeDeposits(client, id, input.rd, input.fd);
@@ -191,7 +194,7 @@ export async function deleteReport(id) {
     if (found.rows.length === 0) return "missing";
     if (found.rows[0].deleted_at) return "gone";
 
-    await client.query(`update reports set deleted_at = now() where id = $1`, [id]);
+    await client.query(`update reports set deleted_at = $2 where id = $1`, [id, nowIso()]);
     // The sheet copy gets a real delete, so the tab looks the same as it always did.
     await enqueue(client, "delete", id);
     return "done";
@@ -225,6 +228,6 @@ export async function reportsSummary() {
   );
   return {
     reports: Number(rows[0].held),
-    since: rows[0].since ? rows[0].since.toISOString() : "",
+    since: rows[0].since ? asIso(rows[0].since) : "",
   };
 }

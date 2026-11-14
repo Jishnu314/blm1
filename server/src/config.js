@@ -1,12 +1,37 @@
-// Every environment variable this server reads, read once, here.
-//
-// One place, so there is one answer to "what does this need to run" and no module
-// further down can quietly start depending on a variable nobody documented. A
-// missing DATABASE_URL is fatal and says so in plain English — the alternative is
-// a connection error forty lines into a stack trace at three in the morning.
-//
-// There is no dotenv. `npm run dev` uses `node --env-file=.env`, which is Node's
-// own (20.6+). This file serves only the legacy local Express helper.
+// Environment for the local demo API. There is no Postgres here: the register is
+// a SQLite file on this machine. Production is the Supabase path in PUBLISH.md.
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const serverRoot = path.join(here, "..");
+
+function loadDotEnv() {
+  const file = path.join(serverRoot, ".env");
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const at = trimmed.indexOf("=");
+    if (at < 1) continue;
+    const name = trimmed.slice(0, at).trim();
+    let value = trimmed.slice(at + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[name] === undefined) process.env[name] = value;
+  }
+}
+
+loadDotEnv();
+
+if (process.env.DATABASE_URL) {
+  console.warn(
+    "DATABASE_URL is ignored. This local API uses a SQLite file on this PC and will not open any remote or production database."
+  );
+}
 
 function text(name, fallback = "") {
   const value = process.env[name];
@@ -18,66 +43,12 @@ function truthy(name) {
   return said === "1" || said === "true" || said === "yes" || said === "on";
 }
 
-function required(name, why) {
-  const value = text(name);
-  if (value !== "") return value;
-  // Printed as well as thrown: the throw stops the boot, the print is the bit a
-  // human is meant to read.
-  console.error(`\n${name} is not set.\n\n${why}\n`);
-  throw new Error(`${name} is not set`);
-}
-
-/**
- * Whether to speak TLS to the database, and how carefully.
- *
- * `auto` means: a database anywhere other than this machine is reached across the
- * internet, so TLS is on. Some hosted database certificates are not signed by
- * anything in Node's trust store, so verification is off — that stops somebody
- * reading the connection, not somebody who can already stand in the middle of it.
- * If your provider gives you a CA file, `require` plus a real ca is the better
- * answer and belongs here.
- */
-function sslFor(url, mode) {
-  if (mode === "off") return false;
-  if (mode === "require") return { rejectUnauthorized: false };
-
-  let host = "";
-  try {
-    host = new URL(url).hostname;
-  } catch {
-    // A password with punctuation in it can defeat the URL parser. Assume remote,
-    // which is the safer of the two guesses; DATABASE_SSL=off overrides it.
-    return { rejectUnauthorized: false };
-  }
-  const here = host === "" || host === "localhost" || host === "127.0.0.1" || host === "::1";
-  return here ? false : { rejectUnauthorized: false };
-}
-
-/**
- * The port to listen on.
- *
- * 8787 rather than 3000 on purpose: 3000 is what every other Node thing on a
- * developer's machine grabs, and the number has to match the one Vite proxies to
- * in vite.config.js. The hosted API is a Supabase Edge Function instead.
- */
 function port() {
   const asked = Number(text("PORT", "8787"));
   if (Number.isInteger(asked) && asked > 0 && asked < 65536) return asked;
-  console.warn(`PORT is not a usable port number, so 8787 is being used instead.`);
+  console.warn("PORT is not a usable port number, so 8787 is being used instead.");
   return 8787;
 }
-
-const databaseUrl = required(
-  "DATABASE_URL",
-  [
-    "The server keeps the register in Postgres, so it needs to know where that is.",
-    "Copy server/.env.example to server/.env and put your connection string in it:",
-    "",
-    "  DATABASE_URL=postgres://user:password@localhost:5432/renewal_register",
-    "",
-    "This local helper reads DATABASE_URL from server/.env.",
-  ].join("\n")
-);
 
 const nodeEnv = text("NODE_ENV", "development");
 const corsOrigins = text("CORS_ORIGINS")
@@ -89,21 +60,24 @@ const sessionSameSite = (text("COOKIE_SAME_SITE") || defaultSameSite).toLowerCas
 if (!["lax", "strict", "none"].includes(sessionSameSite)) {
   throw new Error("COOKIE_SAME_SITE must be lax, strict, or none");
 }
-if (sessionSameSite === "none" && nodeEnv !== "production") {
-  throw new Error("COOKIE_SAME_SITE=none requires NODE_ENV=production (HTTPS)");
-}
+
+const defaultSqlite = path.join(serverRoot, "data", "demo.sqlite");
+const sqlitePath = path.resolve(text("SQLITE_PATH", defaultSqlite));
+const demoMode = text("DEMO_MODE", "1") !== "0";
 
 export const config = {
-  databaseUrl,
-  ssl: sslFor(databaseUrl, text("DATABASE_SSL", "auto").toLowerCase()),
+  sqlitePath,
+  demoMode,
+  demoPassword: "demo-admin-10",
   port: port(),
   nodeEnv,
   isProduction: nodeEnv === "production",
   sessionSameSite,
   corsOrigins,
-  // Only ever used to create the account the first time. Never compared against.
   adminPassword: text("ADMIN_PASSWORD"),
-  // Empty means there is no sheet copy: nothing is queued and nothing is owed.
-  sheetWebhookUrl: text("SHEET_WEBHOOK_URL"),
+  // The local test server never copies to the real Google Sheet, so test reports
+  // cannot land in the live register. Opt in on purpose with ALLOW_SHEET_IN_DEMO=1.
+  allowSheetInDemo: truthy("ALLOW_SHEET_IN_DEMO"),
+  sheetWebhookUrl: demoMode && !truthy("ALLOW_SHEET_IN_DEMO") ? "" : text("SHEET_WEBHOOK_URL"),
   trustProxy: truthy("TRUST_PROXY"),
 };

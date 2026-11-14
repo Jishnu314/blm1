@@ -9,9 +9,10 @@
 // does not need an admin.
 
 import { config } from "./config.js";
-import { migrate, pool } from "./db.js";
+import { closeDb, migrate } from "./db.js";
 import { bootstrapAdmin } from "./auth.js";
 import { buildApp } from "./app.js";
+import { seedIfEmpty } from "./seed.js";
 import { startFlusher } from "./services/mirror.js";
 import { startRateLimitSweeper } from "./lib/rateLimit.js";
 
@@ -19,6 +20,7 @@ const GIVE_UP_AFTER_MS = 10_000;
 
 async function main() {
   await migrate();
+  if (seedIfEmpty()) console.log("Demo sample reports and customers were loaded.");
   await bootstrapAdmin();
 
   const app = buildApp();
@@ -53,7 +55,7 @@ async function main() {
     stopFlusher();
     stopSweeper();
     try {
-      await pool.end();
+      closeDb();
     } catch (problem) {
       console.error("The connection pool did not close cleanly:", problem.message);
     }
@@ -71,8 +73,8 @@ async function main() {
 }
 
 main().catch((problem) => {
-  // A boot that failed is worth the whole error: it is almost always the database URL
-  // or the database not being there, and the message says which.
+  // A boot that failed is worth the whole error: it is almost always the SQLite file
+  // or a missing native module, and the message says which.
   console.error("The server could not start:", problem.message);
   process.exit(1);
 });

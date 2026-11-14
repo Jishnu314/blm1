@@ -3,6 +3,7 @@ create table if not exists public.reports (
   id text primary key,
   name text not null,
   name_key text not null,
+  agent_id text not null default '',
   month text not null,
   renewal bigint not null default 0,
   submitted_at timestamptz not null default now(),
@@ -107,8 +108,8 @@ create or replace function public.api_create_report(p jsonb)
 returns boolean language plpgsql security definer set search_path = public as $$
 declare added_id text;
 begin
-  insert into reports(id, name, name_key, month, renewal, submitted_at)
-  values (p->>'id', p->>'name', lower(p->>'name'), p->>'month',
+  insert into reports(id, name, name_key, agent_id, month, renewal, submitted_at)
+  values (p->>'id', p->>'name', lower(regexp_replace(trim(p->>'name'), '\s+', ' ', 'g')), coalesce(p->>'agentId',''), p->>'month',
           coalesce((p->>'renewal')::bigint, 0), coalesce((p->>'submittedAt')::timestamptz, now()))
   on conflict(id) do nothing returning id into added_id;
   if added_id is null then return false; end if;
@@ -124,7 +125,8 @@ end $$;
 create or replace function public.api_replace_report(p_id text, p jsonb)
 returns boolean language plpgsql security definer set search_path = public as $$
 begin
-  update reports set name=p->>'name', name_key=lower(p->>'name'), month=p->>'month',
+  update reports set name=p->>'name', name_key=lower(regexp_replace(trim(p->>'name'), '\s+', ' ', 'g')),
+    agent_id=coalesce(p->>'agentId',''), month=p->>'month',
     renewal=coalesce((p->>'renewal')::bigint,0), edited_at=now(), edited_in='web'
   where id=p_id and deleted_at is null;
   if not found then return false; end if;

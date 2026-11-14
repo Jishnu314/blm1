@@ -42,16 +42,17 @@ want different code.
 
 ```
 the pages       Vite + React — /form/ for agents, /admin/ for you
-the API         Supabase Edge Function — report API and admin password/session
-the database    Supabase Postgres and Storage — register data and popup pictures
-the sheet       optional secondary copy, updated by the Edge Function
+the local API   Express in server/ — used on this PC for demo and tests
+the local DB    SQLite file server/data/demo.sqlite — not production data
+the live API    Supabase Edge Function — later, see PUBLISH.md
+the live DB     Supabase Postgres — later, see PUBLISH.md
+the sheet       optional copy only, never the register
 ```
 
-**Supabase is the register.** Every report, every deposit line, settings, and popup
-pictures live in Supabase Postgres and Storage. The Edge Function is the only part
-allowed to use the server key; browser access to the tables is blocked by row-level
-security. Popup posters live in a public Storage bucket so agents can load them. A
-phone holds what it has not managed to send yet.
+**On this PC, SQLite is the register.** Every report, deposit line, setting, customer
+row, and popup picture lives in `server/data/demo.sqlite`. Wipe that file and you
+lose only demo data. Production is a separate Supabase project; this app will not
+open it from local demo even if `DATABASE_URL` is left in an old `.env`.
 
 **The Google Sheet is a copy.** When configured, every write is pushed to the same Apps Script
 `/exec` URL this app used to talk to directly, in the same form-encoded language
@@ -104,35 +105,34 @@ Published on GitHub Pages, the links include the repository path, for example
 requests and connect to Supabase Postgres. See [`PUBLISH.md`](PUBLISH.md) for the
 deployment steps. Agents only ever get the `/form/` link.
 
-## Run it on your PC
+## Run it on your PC (local demo only)
 
-Two processes now, because there is a server. Two terminals, one in each folder.
+This PC uses a **SQLite file** at `server/data/demo.sqlite`. It is not the live
+register. `DATABASE_URL` is ignored, so a leftover Postgres or Supabase URL cannot
+open production data. The real database is documented later in [`PUBLISH.md`](PUBLISH.md)
+and is not used here.
 
-**The server first.** You need a Postgres to point at — locally
-`createdb renewal_register`, or a hosted one on Supabase — and a
-password. In `server/`:
-
-```
-npm install
-copy .env.example .env        # then put your DATABASE_URL in it
-npm run migrate
-npm run set-password -- "one you will remember"
-npm run dev
-```
-
-`http://localhost:8787/api/health` should answer `{"ok":true,…}`. **Node 20 or
-newer**, because `node --env-file` is what reads `.env` — there is no dotenv here,
-and only two dependencies in total. `npm run migrate` is safe to run again: the
-schema is all `create … if not exists`, and the server runs it on every boot anyway.
-
-**Then the pages**, in the other terminal, in this folder:
+From the project folder:
 
 ```
 npm install
-npm run dev
+npm --prefix server install
+npm run demo
 ```
 
-Open http://localhost:5173/form/ (the bare address sends you there anyway).
+That starts the local API on port 8787 and the pages on 5173. Open
+http://localhost:5173/form/ and http://localhost:5173/admin/ .
+
+Admin demo password: `demo-admin-10` (printed in the server terminal).
+
+Local `vite` ignores `VITE_API_URL` in `.env`, so a leftover production address
+cannot mix live data into this PC's demo. Production builds still use that file.
+
+`http://localhost:8787/api/health` should answer `"engine":"sqlite"` and
+`"mode":"demo"`. Wipe the demo file and reseeds with `npm run demo:reset`.
+
+**Node 20 or newer.** If you prefer two terminals: `npm run dev` in `server/`,
+then `npm run dev` in this folder.
 
 **8787 is not a number you can change in one place.** Vite is told to pass `/api`
 through to it, which is what leaves the browser seeing a single origin: no CORS to
@@ -142,19 +142,8 @@ change `PORT` in `server/.env`, change the proxy in `vite.config.js` to match.
 In production, GitHub Actions sets `VITE_API_URL` to the Supabase Edge Function
 address and includes the public anon key. See `PUBLISH.md` for the account setup.
 
-**Then, once:** bring the reports already in the sheet across, so the register
-starts with the history instead of empty. In `server/`, with `SHEET_WEBHOOK_URL`
-set:
-
-```
-npm run import-sheet
-```
-
-It inserts by id and skips anything already there, so the second run brings in
-nothing — safe after a few more rows arrive, and safe when you cannot remember
-whether you already did it. It reads the same `?action=reports` the app used to
-read on every page load, it is defensive about what a hand-typed cell might hold,
-and a row with no name is treated as a row somebody abandoned rather than a report.
+The demo file already has sample reports. Leave the Google Sheet disconnected for
+local testing. Production import from a sheet is in [`PUBLISH.md`](PUBLISH.md).
 
 ## Try it on your phone (same wifi)
 
@@ -569,9 +558,7 @@ src/lib/popup.js            when the popup is live, when it has ended, and
                             whether this agent has already seen today's
 src/lib/currency.js         ₹ digits in, "1,25,000" out
 src/lib/haptics.js          a 10ms buzz per key press where the phone allows one
-src/lib/sheet.js            nothing. A dead re-export left where the old module
-                            was, because the tools used for the rewire could not
-                            delete a file. Nothing imports it; delete it.
+src/lib/api.js              the only network layer for form and admin pages
 src/index.css               the whole look, in one file
 src/admin.css               the few controls only the admin page needs
 public/ads/                 popup pictures kept with the app instead of uploaded

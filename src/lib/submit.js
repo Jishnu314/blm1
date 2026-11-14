@@ -107,10 +107,11 @@ async function attempt(action, send) {
  * `unauthorised` comes back with the rest of the outcome and is always false
  * here: posting a report is public, because an agent opens a link and types.
  */
-export async function sendEntry({ name, renewal, rd = [], fd = [], month, monthLabel }) {
+export async function sendEntry({ name, agentId = "", renewal, rd = [], fd = [], month, monthLabel }) {
   const entry = {
     id: `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim(),
+    agentId,
     renewal,
     rd,
     fd,

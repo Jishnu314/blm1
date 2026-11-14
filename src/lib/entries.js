@@ -148,6 +148,7 @@ export function normaliseReport(raw = {}) {
   return {
     id: String(raw.id || ""),
     name: String(raw.name || "").trim(),
+    agentId: String(raw.agentId || ""),
     month,
     monthLabel: said ? said.full : String(raw.monthLabel || raw.month || ""),
     renewal: Number(raw.renewal) || 0,
@@ -255,6 +256,7 @@ const reportFor = (entry = {}) => ({
   report: {
     id: String(entry.id || ""),
     name: String(entry.name || "").trim(),
+    agentId: String(entry.agentId || ""),
     month: String(entry.month || ""),
     renewal: Number(entry.renewal) || 0,
     rd: depositRows(entry.rd),

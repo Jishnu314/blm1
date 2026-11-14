@@ -104,8 +104,8 @@ export default function CustomerLedger() {
       const remote = Array.isArray(data?.customers) ? data.customers : [];
       let pendingLocal = false;
       try { pendingLocal = localStorage.getItem(PENDING_KEY) === "1"; } catch { /* use the server copy */ }
-      // On first sign-in, or after an offline edit, bring this browser's pending
-      // ledger to Supabase. Otherwise use the shared cloud list.
+      // After an offline edit, keep this browser's pending list until Save
+      // reaches the local register. Otherwise use the shared list from the API.
       const chosen = data?.configured && !pendingLocal ? remote : localCustomers;
       const normalized = normalizeCustomers(chosen);
       setCustomers(normalized);

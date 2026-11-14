@@ -361,6 +361,25 @@ label[for] {
   font-weight: 700;
 }
 
+.agent-id-choice {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--ink-mid);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.agent-id-choice select {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+}
+
 /* --- RD / FD sections: quiet until they hold something ------ */
 
 .section-head {
