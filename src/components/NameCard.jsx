@@ -43,13 +43,24 @@ export default function NameCard({
           aria-describedby="name-hint"
         />
         <p id="name-hint" className={errors.name ? "hint is-error" : "hint"}>
-          {errors.name ||
-            (matchedAgentIds.length === 1
-              ? `Matched agent ID ending ${matchedAgentIds[0].slice(-5)}`
-              : enteredNameKey && Object.keys(agentIdMap).length
-                ? "No agent ID match yet. Check the name with your team."
-                : "The name your team knows you by.")}
+          {errors.name || "The name your team knows you by."}
         </p>
+        {matchedAgentIds.length === 1 && (
+          <p className="id-status is-match" role="status">
+            <span className="id-status-label">Agent ID found</span>
+            <strong className="id-status-code">…{matchedAgentIds[0].slice(-5)}</strong>
+          </p>
+        )}
+        {matchedAgentIds.length > 1 && (
+          <p className="id-status is-match" role="status">
+            <span className="id-status-label">{matchedAgentIds.length} agent IDs match this name</span>
+          </p>
+        )}
+        {matchedAgentIds.length === 0 && enteredNameKey && Object.keys(agentIdMap).length > 0 && (
+          <p className="id-status is-none" role="status">
+            <span className="id-status-label">Name not found in the agent list. Check the spelling, or ask your team leader.</span>
+          </p>
+        )}
         {matchedAgentIds.length > 1 && (
           <label className="agent-id-choice">
             <span>Choose your ID</span>

@@ -91,22 +91,40 @@ export function rankPlayers(raw) {
 }
 
 /**
- * The three that go on the podium, and everyone else.
+ * Who stands on the podium, and everyone else.
  *
- * By position in the list, not by place: two players drawing for first are still
- * only two of the three podium spots.
+ * By place, not by position in the list: everyone who has earned 1st, 2nd or 3rd
+ * is on the podium. So if two agents draw for third, both of them stand on the
+ * third block rather than one being left off.
  */
 export function splitBoard(ranked = []) {
-  return { top: ranked.slice(0, 3), rest: ranked.slice(3) };
+  return {
+    top: ranked.filter((player) => player.place <= 3),
+    rest: ranked.filter((player) => player.place > 3),
+  };
 }
 
 /**
- * The podium, read left to right: second, first, third — the winner in the
- * middle, standing highest. A board with one or two names just leans left.
+ * The podium steps, one per place, each holding everyone who shares that place.
+ * Two agents level on points stand together on the same block.
  */
-export function podiumOrder(top = []) {
-  if (top.length < 3) return top;
-  return [top[1], top[0], top[2]];
+export function podiumSteps(top = []) {
+  const steps = [];
+  for (const player of top) {
+    const last = steps[steps.length - 1];
+    if (last && last.place === player.place) last.players.push(player);
+    else steps.push({ place: player.place, medal: player.medal, draw: player.draw, players: [player] });
+  }
+  return steps;
+}
+
+/**
+ * The steps, read left to right: second, first, third — the winner in the
+ * middle, standing highest. A board with one or two steps just leans left.
+ */
+export function podiumOrder(steps = []) {
+  if (steps.length < 3) return steps;
+  return [steps[1], steps[0], steps[2]];
 }
 
 /** Nothing to show is not the same as switched off, but it looks the same. */

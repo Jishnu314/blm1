@@ -361,6 +361,41 @@ label[for] {
   font-weight: 700;
 }
 
+/* The result of looking the typed name up in the agent list: highlighted green
+   when an ID was found, amber when the name is not in the list. */
+.id-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.id-status.is-match {
+  color: var(--accent);
+  background: rgba(15, 107, 88, 0.1);
+  border: 1px solid rgba(15, 107, 88, 0.35);
+}
+
+.id-status.is-none {
+  color: #8a5300;
+  background: rgba(181, 106, 18, 0.1);
+  border: 1px solid rgba(181, 106, 18, 0.4);
+}
+
+.id-status-code {
+  padding: 1px 8px;
+  border-radius: 5px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
 .agent-id-choice {
   display: grid;
   gap: 6px;
@@ -847,6 +882,25 @@ label[for] {
 /* The winner's medal is the biggest thing on the board. */
 .step.is-gold .medal {
   font-size: 1.9rem;
+}
+
+/* People who share a place stand side by side on the same block, so their names
+   and figures sit at the same height as every other step. */
+.step-people {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.step-person {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .step-name {

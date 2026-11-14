@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { rankPlayers, splitBoard, podiumOrder, boardTitle } from "../lib/board.js";
+import { rankPlayers, splitBoard, podiumSteps, podiumOrder, boardTitle } from "../lib/board.js";
 import { formatINR } from "../lib/currency.js";
 
 /**
@@ -43,16 +43,22 @@ export default function Board({ settings, preview = false }) {
       </p>
 
       <ol className="podium">
-        {podiumOrder(top).map((player) => (
-          <li key={player.name} className={`step is-${player.medal}`}>
-            <span className="medal" aria-hidden="true">
-              {player.medal === "gold" ? "🥇" : player.medal === "silver" ? "🥈" : "🥉"}
+        {podiumOrder(podiumSteps(top)).map((step) => (
+          <li key={step.place} className={`step is-${step.medal}`} style={{ flexGrow: step.players.length }}>
+            <span className="step-people">
+              {step.players.map((player) => (
+                <span key={player.name} className="step-person">
+                  <span className="medal" aria-hidden="true">
+                    {step.medal === "gold" ? "🥇" : step.medal === "silver" ? "🥈" : "🥉"}
+                  </span>
+                  <span className="step-name">{player.name}</span>
+                  <span className="step-points">{formatINR(String(player.points))}</span>
+                </span>
+              ))}
             </span>
-            <span className="step-name">{player.name}</span>
-            <span className="step-points">{formatINR(String(player.points))}</span>
-            {player.draw ? <span className="draw">Draw</span> : null}
+            {step.draw ? <span className="draw">Draw</span> : null}
             <span className="block" aria-hidden="true">
-              {player.place}
+              {step.place}
             </span>
           </li>
         ))}
